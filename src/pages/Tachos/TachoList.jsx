@@ -1,18 +1,17 @@
 import { useEffect, useState } from "react";
-import { getTachos, deleteTacho } from "../../api/tachoApi";
+import api from "../../api/axiosConfig";
+import { Link } from "react-router-dom";
 
 const TachoList = () => {
   const [tachos, setTachos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
-  const fetchTachos = async () => {
-    setLoading(true);
+  const loadTachos = async () => {
     try {
-      const data = await getTachos();
-      setTachos(data);
-    } catch (err) {
-      setError("No se pudieron cargar los tachos");
+      const res = await api.get("/tachos/");
+      setTachos(res.data);
+    } catch (e) {
+      console.error("Error cargando tachos", e);
     } finally {
       setLoading(false);
     }
@@ -20,27 +19,31 @@ const TachoList = () => {
 
   const handleDelete = async (id) => {
     if (!window.confirm("¿Seguro que quieres eliminar este tacho?")) return;
+
     try {
-      await deleteTacho(id);
+      await api.delete(`/tachos/${id}/`);
       setTachos((prev) => prev.filter((t) => t.id !== id));
-    } catch (err) {
-      alert("Error al eliminar el tacho");
+    } catch (e) {
+      alert("No se pudo eliminar el tacho");
     }
   };
 
   useEffect(() => {
-    fetchTachos();
+    loadTachos();
   }, []);
 
   if (loading) return <p>Cargando tachos...</p>;
-  if (error) return <p>{error}</p>;
 
   return (
     <div>
-      <h2>Lista de Tachós</h2>
-      <table>
+      <h2>Tachos</h2>
+
+      <Link to="/dashboard/tachos/nuevo">➕ Nuevo Tacho</Link>
+
+      <table border="1" cellPadding="8" style={{ marginTop: "20px" }}>
         <thead>
           <tr>
+            <th>ID</th>
             <th>Código</th>
             <th>Nombre</th>
             <th>Ubicación</th>
@@ -48,16 +51,21 @@ const TachoList = () => {
             <th>Acciones</th>
           </tr>
         </thead>
+
         <tbody>
-          {tachos.map((tacho) => (
-            <tr key={tacho.id}>
-              <td>{tacho.codigo}</td>
-              <td>{tacho.nombre}</td>
-              <td>{`${tacho.ubicacion_lat}, ${tacho.ubicacion_lon}`}</td>
-              <td>{tacho.descripcion}</td>
+          {tachos.map((t) => (
+            <tr key={t.id}>
+              <td>{t.id}</td>
+              <td>{t.codigo}</td>
+              <td>{t.nombre}</td>
               <td>
-                <button onClick={() => handleDelete(tacho.id)}>Eliminar</button>
-                {/* Puedes agregar un botón para editar o ver detalle */}
+                {t.ubicacion_lat}, {t.ubicacion_lon}
+              </td>
+              <td>{t.descripcion}</td>
+              <td>
+                <Link to={`/dashboard/tachos/editar/${t.id}`}>✏️ Editar</Link>
+                {" | "}
+                <button onClick={() => handleDelete(t.id)}>🗑️ Eliminar</button>
               </td>
             </tr>
           ))}

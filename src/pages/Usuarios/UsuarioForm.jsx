@@ -18,23 +18,28 @@ const UsuarioForm = () => {
   const [provincias, setProvincias] = useState([]);
   const [cantones, setCantones] = useState([]);
 
-  // Cargar usuario si estamos editando
   const loadUsuario = async () => {
     try {
       const res = await api.get(`/usuarios/${id}/`);
-      setUsuario(res.data);
+      setUsuario({
+        nombre: res.data.nombre,
+        email: res.data.email,
+        rol: res.data.rol,
+        telefono: res.data.telefono,
+        provincia: res.data.provincia,
+        canton: res.data.canton,
+      });
     } catch (e) {
       console.error("Error cargando usuario", e);
     }
   };
 
-  // Cargar provincias y cantones
   const loadProvinciasCantones = async () => {
     try {
-      const resProvincia = await api.get("/provincias/");
-      const resCanton = await api.get("/cantones/");
-      setProvincias(resProvincia.data);
-      setCantones(resCanton.data);
+      const p = await api.get("/provincias/");
+      const c = await api.get("/cantones/");
+      setProvincias(p.data);
+      setCantones(c.data);
     } catch (e) {
       console.error("Error cargando ubicaciones", e);
     }
@@ -71,20 +76,12 @@ const UsuarioForm = () => {
 
       <form onSubmit={handleSubmit} style={{ marginTop: "20px" }}>
         <label>Nombre:</label>
-        <input
-          name="nombre"
-          value={usuario.nombre}
-          onChange={handleChange}
-        />
+        <input name="nombre" value={usuario.nombre} onChange={handleChange} />
 
         <br /><br />
 
         <label>Email:</label>
-        <input
-          name="email"
-          value={usuario.email}
-          onChange={handleChange}
-        />
+        <input name="email" value={usuario.email} onChange={handleChange} />
 
         <br /><br />
 
@@ -99,20 +96,12 @@ const UsuarioForm = () => {
         <br /><br />
 
         <label>Teléfono:</label>
-        <input
-          name="telefono"
-          value={usuario.telefono}
-          onChange={handleChange}
-        />
+        <input name="telefono" value={usuario.telefono} onChange={handleChange} />
 
         <br /><br />
 
         <label>Provincia:</label>
-        <select
-          name="provincia"
-          value={usuario.provincia}
-          onChange={handleChange}
-        >
+        <select name="provincia" value={usuario.provincia} onChange={handleChange}>
           <option value="">Seleccione</option>
           {provincias.map((p) => (
             <option key={p.id} value={p.id}>
@@ -134,6 +123,7 @@ const UsuarioForm = () => {
         </select>
 
         <br /><br />
+
         <button type="submit">💾 Guardar</button>
       </form>
     </div>

@@ -1,3 +1,4 @@
+// src/pages/usuarios/UsuarioList.jsx
 import { useEffect, useState } from "react";
 import api from "../../api/axiosConfig";
 import { Link } from "react-router-dom";
@@ -9,15 +10,13 @@ const UsuarioList = () => {
   const loadUsuarios = async () => {
     try {
       const res = await api.get("/usuarios/");
-      console.log("DATA:", res.data);   // 🔍 para ver qué viene
-      setUsuarios(res.data);
+      setUsuarios(res.data.results || res.data);
     } catch (e) {
       console.error("Error cargando usuarios", e);
     } finally {
       setLoading(false);
     }
   };
-
 
   useEffect(() => {
     loadUsuarios();
@@ -29,7 +28,7 @@ const UsuarioList = () => {
     <div>
       <h2>Usuarios</h2>
 
-      <Link to="/dashboard/usuarios/nuevo">➕ Nuevo Usuario</Link>
+      <Link to="/usuarios/nuevo">➕ Nuevo Usuario</Link>
 
       <table border="1" cellPadding="8" style={{ marginTop: "20px" }}>
         <thead>
@@ -50,7 +49,7 @@ const UsuarioList = () => {
               <td>{u.email}</td>
               <td>{u.rol}</td>
               <td>
-                <Link to={`/dashboard/usuarios/editar/${u.id}`}>✏️ Editar</Link>
+                <Link to={`/usuarios/editar/${u.id}`}>✏️ Editar</Link>
               </td>
             </tr>
           ))}

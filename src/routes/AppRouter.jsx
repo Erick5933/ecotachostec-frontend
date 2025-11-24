@@ -1,59 +1,129 @@
+// src/routes/AppRouter.jsx
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useContext } from "react";
+import { AuthContext } from "../context/AuthContext";
 
-import Dashboard from "../pages/Dashboard/Dashboard";
+// Layouts
 import Layout from "../components/Layout/Layout";
+import UserLayout from "../components/Layout/UserLayout";
 
-import UsuarioList from "../pages/Usuarios/UsuarioList";
-import UsuarioForm from "../pages/Usuarios/UsuarioForm";
+// Public/User Pages
+import LandingPage from "../pages/User/LandingPage";
+import Login from "../pages/Auth/Login";
+import Register from "../pages/Auth/Register";
+import UserPortal from "../pages/User/UserPortal";
 
-import UbicacionList from "../pages/Ubicaciones/UbicacionList";
-import UbicacionForm from "../pages/Ubicaciones/UbicacionForm";
+// Admin Pages  (NOTA: revisar mayúsculas/minúsculas EXACTAS)
+import Dashboard from "../pages/Dashboard/Dashboard";
+import UsuarioList from "../pages/usuarios/UsuarioList";      // <-- corregido
+import UbicacionList from "../pages/ubicaciones/UbicacionList";
+import TachoList from "../pages/tachos/TachoList";
+import DeteccionList from "../pages/detecciones/DeteccionList";
 
-import DeteccionList from "../pages/Detecciones/DeteccionList";
 
-import TachoList from "../pages/Tachos/TachoList";
-import TachoForm from "../pages/Tachos/TachoForm";
+// Protected Admin/User Route
+function ProtectedRoute({ children, requireAdmin = false }) {
+  const { user } = useContext(AuthContext);
 
-// Deja todo pasar porque no tienes login aún
-const PrivateRoute = ({ children }) => children;
+  if (!user) return <Navigate to="/login" replace />;
 
-const AppRouter = () => (
-  <BrowserRouter>
-    <Routes>
-      {/* PRIVATE (dashboard + layout) */}
-      <Route
-        path="/"
-        element={
-          <PrivateRoute>
-            <Layout />
-          </PrivateRoute>
-        }
-      >
-        <Route index element={<Dashboard />} />
+  if (requireAdmin && user.rol !== "admin") {
+    return <Navigate to="/portal" replace />;
+  }
 
-        {/* CRUD Usuarios */}
-        <Route path="usuarios" element={<UsuarioList />} />
-        <Route path="usuarios/nuevo" element={<UsuarioForm />} />
-        <Route path="usuarios/editar/:id" element={<UsuarioForm />} />
+  return children;
+}
 
-        {/* CRUD Ubicaciones */}
-        <Route path="ubicaciones" element={<UbicacionList />} />
-        <Route path="ubicaciones/nuevo" element={<UbicacionForm />} />
-        <Route path="ubicaciones/editar/:id" element={<UbicacionForm />} />
 
-        {/* CRUD Tachos */}
-        <Route path="tachos" element={<TachoList />} />
-        <Route path="tachos/nuevo" element={<TachoForm />} />
-        <Route path="tachos/editar/:id" element={<TachoForm />} />
+// Redirect if already logged in
+function PublicRoute({ children }) {
+  const { user } = useContext(AuthContext);
 
-        {/* Detecciones */}
-        <Route path="detecciones" element={<DeteccionList />} />
-      </Route>
+  if (user) {
+    return <Navigate to={user.rol === "admin" ? "/" : "/portal"} replace />;
+  }
 
-      {/* DEFAULT */}
-      <Route path="*" element={<Navigate to="/" />} />
-    </Routes>
-  </BrowserRouter>
-);
+  return children;
+}
 
-export default AppRouter;
+
+export default function AppRouter() {
+  const authContext = useContext(AuthContext);
+  const user = authContext?.user || null;
+
+  return (
+    <BrowserRouter>
+      <Routes>
+
+        {/** =====================
+            PUBLIC / USER AREA
+        ======================== */}
+        <Route element={<UserLayout />}>
+          <Route path="/home" element={<LandingPage />} />
+
+          <Route
+            path="/login"
+            element={
+              <PublicRoute>
+                <Login />
+              </PublicRoute>
+            }
+          />
+
+          <Route
+            path="/register"
+            element={
+              <PublicRoute>
+                <Register />
+              </PublicRoute>
+            }
+          />
+
+          <Route
+            path="/portal"
+            element={
+              <ProtectedRoute>
+                <UserPortal />
+              </ProtectedRoute>
+            }
+          />
+        </Route>
+
+
+        {/** =====================
+            ADMIN AREA (PROTECTED)
+        ======================== */}
+        <Route
+          element={
+            <ProtectedRoute requireAdmin>
+              <Layout />
+            </ProtectedRoute>
+          }
+        >
+          {/* Dashboard igual que antes (ruta index) */}
+          <Route index element={<Dashboard />} />
+
+          <Route path="usuarios" element={<UsuarioList />} />
+          <Route path="ubicaciones" element={<UbicacionList />} />
+          <Route path="tachos" element={<TachoList />} />
+          <Route path="detecciones" element={<DeteccionList />} />
+        </Route>
+
+
+        {/** =====================
+            CATCH-ALL
+        ======================== */}
+        <Route
+          path="*"
+          element={
+            user ? (
+              <Navigate to={user.rol === "admin" ? "/" : "/portal"} replace />
+            ) : (
+              <Navigate to="/home" replace />
+            )
+          }
+        />
+      </Routes>
+    </BrowserRouter>
+  );
+}
