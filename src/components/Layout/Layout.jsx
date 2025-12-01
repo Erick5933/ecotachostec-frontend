@@ -1,6 +1,18 @@
 // src/components/Layout/Layout.jsx
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
+import {
+  LayoutDashboard,
+  Users,
+  MapPin,
+  Trash2,
+  Brain,
+  Bell,
+  Settings,
+  User,
+  ChevronLeft,
+  ChevronRight
+} from 'lucide-react';
 import "./layout.css";
 
 export default function Layout() {
@@ -20,31 +32,31 @@ export default function Layout() {
   const menuItems = [
     {
       path: "/",
-      icon: "📊",
+      icon: LayoutDashboard,
       label: "Dashboard",
       description: "Panel principal"
     },
     {
       path: "/usuarios",
-      icon: "👥",
+      icon: Users,
       label: "Usuarios",
       description: "Gestión de usuarios"
     },
     {
       path: "/ubicaciones",
-      icon: "📍",
+      icon: MapPin,
       label: "Ubicaciones",
       description: "Provincias y cantones"
     },
     {
       path: "/tachos",
-      icon: "🗑️",
+      icon: Trash2,
       label: "Tachos",
       description: "Gestión de tachos"
     },
     {
       path: "/detecciones",
-      icon: "🤖",
+      icon: Brain,
       label: "Detecciones IA",
       description: "Análisis inteligente"
     }
@@ -56,7 +68,9 @@ export default function Layout() {
       <aside className={`sidebar ${sidebarOpen ? "open" : "closed"}`}>
         <div className="sidebar-header">
           <div className="logo-container">
-            <div className="logo-icon">🌿</div>
+            <div className="logo-icon">
+              <Trash2 className="logo-icon-svg" />
+            </div>
             {sidebarOpen && (
               <div className="logo-text">
                 <h2 className="logo-title">EcoTachos</h2>
@@ -69,13 +83,16 @@ export default function Layout() {
         <nav className="sidebar-nav">
           {menuItems.map((item) => {
             const isActive = location.pathname === item.path;
+            const IconComponent = item.icon;
             return (
               <Link
                 key={item.path}
                 to={item.path}
                 className={`nav-item ${isActive ? "active" : ""}`}
               >
-                <span className="nav-icon">{item.icon}</span>
+                <span className="nav-icon">
+                  <IconComponent className="nav-icon-svg" />
+                </span>
                 {sidebarOpen && (
                   <div className="nav-content">
                     <span className="nav-label">{item.label}</span>
@@ -87,24 +104,17 @@ export default function Layout() {
           })}
         </nav>
 
-        <div className="sidebar-footer">
-          {sidebarOpen && (
-            <div className="user-info">
-              <div className="user-avatar">👤</div>
-              <div className="user-details">
-                <span className="user-name">Admin User</span>
-                <span className="user-role">Administrador</span>
-              </div>
-            </div>
-          )}
-        </div>
 
         <button
           className="sidebar-toggle"
           onClick={() => setSidebarOpen(!sidebarOpen)}
           aria-label="Toggle sidebar"
         >
-          {sidebarOpen ? "◀" : "▶"}
+          {sidebarOpen ? (
+            <ChevronLeft className="toggle-icon" />
+          ) : (
+            <ChevronRight className="toggle-icon" />
+          )}
         </button>
       </aside>
 
@@ -117,15 +127,17 @@ export default function Layout() {
 
           <div className="topbar-right">
             <button className="topbar-btn" aria-label="Notificaciones">
-              🔔
+              <Bell className="topbar-icon" />
               <span className="notification-badge">3</span>
             </button>
             <button className="topbar-btn" aria-label="Configuración">
-              ⚙️
+              <Settings className="topbar-icon" />
             </button>
-            <button className="topbar-btn user-btn">
-              <span className="user-avatar-sm">👤</span>
-            </button>
+
+            <Link to="/perfil" className="topbar-btn user-btn">
+              <User className="topbar-icon" />
+            </Link>
+
           </div>
         </header>
 

@@ -7,21 +7,30 @@ import { AuthContext } from "../context/AuthContext";
 import Layout from "../components/Layout/Layout";
 import UserLayout from "../components/Layout/UserLayout";
 
-// Public/User Pages
+// Admin Pages
+import Dashboard from "../pages/Dashboard/Dashboard";
+import UsuarioList from "../pages/Usuarios/UsuarioList";
+import UsuarioForm from "../pages/Usuarios/UsuarioForm";
+import UbicacionList from "../pages/Ubicaciones/UbicacionList";
+import UbicacionForm from "../pages/Ubicaciones/UbicacionForm";
+import TachoList from "../pages/Tachos/TachoList";
+import TachoForm from "../pages/Tachos/TachoForm";
+import TachoDetail from "../pages/Tachos/TachoDetail";
+import DeteccionList from "../pages/Detecciones/DeteccionList";
+import DeteccionDetail from "../pages/Detecciones/DeteccionDetail";
+
+// NEW: Perfil
+import Profile from "../pages/Auth/Profile";
+
+// User Pages
 import LandingPage from "../pages/User/LandingPage";
 import Login from "../pages/Auth/Login";
 import Register from "../pages/Auth/Register";
 import UserPortal from "../pages/User/UserPortal";
 
-// Admin Pages  (NOTA: revisar mayúsculas/minúsculas EXACTAS)
-import Dashboard from "../pages/Dashboard/Dashboard";
-import UsuarioList from "../pages/usuarios/UsuarioList";      // <-- corregido
-import UbicacionList from "../pages/ubicaciones/UbicacionList";
-import TachoList from "../pages/tachos/TachoList";
-import DeteccionList from "../pages/detecciones/DeteccionList";
-
-
-// Protected Admin/User Route
+// ========================
+// PROTECTED ROUTES
+// ========================
 function ProtectedRoute({ children, requireAdmin = false }) {
   const { user } = useContext(AuthContext);
 
@@ -34,8 +43,9 @@ function ProtectedRoute({ children, requireAdmin = false }) {
   return children;
 }
 
-
-// Redirect if already logged in
+// ========================
+// PUBLIC ROUTES
+// ========================
 function PublicRoute({ children }) {
   const { user } = useContext(AuthContext);
 
@@ -46,18 +56,19 @@ function PublicRoute({ children }) {
   return children;
 }
 
-
+// ========================
+// APP ROUTER PRINCIPAL
+// ========================
 export default function AppRouter() {
-  const authContext = useContext(AuthContext);
-  const user = authContext?.user || null;
+  const { user } = useContext(AuthContext);
 
   return (
     <BrowserRouter>
       <Routes>
 
-        {/** =====================
-            PUBLIC / USER AREA
-        ======================== */}
+        {/* ======================== */}
+        {/* PUBLIC ROUTES (UserLayout) */}
+        {/* ======================== */}
         <Route element={<UserLayout />}>
           <Route path="/home" element={<LandingPage />} />
 
@@ -89,10 +100,9 @@ export default function AppRouter() {
           />
         </Route>
 
-
-        {/** =====================
-            ADMIN AREA (PROTECTED)
-        ======================== */}
+        {/* ======================== */}
+        {/* ADMIN ROUTES (Layout) */}
+        {/* ======================== */}
         <Route
           element={
             <ProtectedRoute requireAdmin>
@@ -100,19 +110,36 @@ export default function AppRouter() {
             </ProtectedRoute>
           }
         >
-          {/* Dashboard igual que antes (ruta index) */}
-          <Route index element={<Dashboard />} />
+          {/* Dashboard */}
+          <Route path="/" element={<Dashboard />} />
 
-          <Route path="usuarios" element={<UsuarioList />} />
-          <Route path="ubicaciones" element={<UbicacionList />} />
-          <Route path="tachos" element={<TachoList />} />
-          <Route path="detecciones" element={<DeteccionList />} />
+          {/* PERFIL (Nueva ruta) */}
+          <Route path="/perfil" element={<Profile />} />
+
+          {/* Usuarios */}
+          <Route path="/usuarios" element={<UsuarioList />} />
+          <Route path="/usuarios/nuevo" element={<UsuarioForm />} />
+          <Route path="/usuarios/editar/:id" element={<UsuarioForm />} />
+
+          {/* Ubicaciones */}
+          <Route path="/ubicaciones" element={<UbicacionList />} />
+          <Route path="/ubicaciones/nuevo" element={<UbicacionForm />} />
+          <Route path="/ubicaciones/editar/:id" element={<UbicacionForm />} />
+
+          {/* Tachos */}
+          <Route path="/tachos" element={<TachoList />} />
+          <Route path="/tachos/nuevo" element={<TachoForm />} />
+          <Route path="/tachos/editar/:id" element={<TachoForm />} />
+          <Route path="/tachos/:id" element={<TachoDetail />} />
+
+          {/* Detecciones */}
+          <Route path="/detecciones" element={<DeteccionList />} />
+          <Route path="/detecciones/:id" element={<DeteccionDetail />} />
         </Route>
 
-
-        {/** =====================
-            CATCH-ALL
-        ======================== */}
+        {/* ======================== */}
+        {/* FALLBACK */}
+        {/* ======================== */}
         <Route
           path="*"
           element={

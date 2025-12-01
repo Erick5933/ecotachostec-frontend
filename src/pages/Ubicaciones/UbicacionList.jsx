@@ -1,9 +1,14 @@
+// src/pages/Ubicaciones/UbicacionList.jsx
 import { useEffect, useState } from "react";
-import api from "../../api/axiosConfig";
 import { Link } from "react-router-dom";
+import { MapPin, Plus, Search, Edit, Building, Map } from "lucide-react";
+import api from "../../api/axiosConfig";
+import "../adminPages.css";
 
 const UbicacionList = () => {
   const [ubicaciones, setUbicaciones] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const loadUbicaciones = async () => {
     try {
@@ -27,7 +32,6 @@ const UbicacionList = () => {
         };
       });
 
-      // Ordenar por provincia -> ciudad -> cantón
       comb.sort((a, b) => {
         if (a.provincia_nombre !== b.provincia_nombre) {
           return a.provincia_nombre.localeCompare(b.provincia_nombre);
@@ -41,6 +45,8 @@ const UbicacionList = () => {
       setUbicaciones(comb);
     } catch (e) {
       console.error("Error cargando ubicaciones", e);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -48,39 +54,133 @@ const UbicacionList = () => {
     loadUbicaciones();
   }, []);
 
+  const filteredUbicaciones = ubicaciones.filter((ub) =>
+    ub.provincia_nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    ub.ciudad_nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    ub.canton_nombre?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="spinner"></div>
+        <p className="loading-text">Cargando ubicaciones...</p>
+      </div>
+    );
+  }
+
   return (
-    <div>
-      <h2>Ubicaciones</h2>
+    <div className="admin-page">
+      {/* Page Header */}
+      <div className="page-header">
+        <div className="page-header-content">
+          <h2>
+            <MapPin className="icon-lg" style={{ display: "inline", marginRight: "12px" }} />
+            Gestión de Ubicaciones
+          </h2>
+          <p className="page-header-subtitle">
+            Administre provincias, ciudades y cantones del sistema
+          </p>
+        </div>
+        <div className="page-header-actions">
+          <Link to="/ubicaciones/nuevo" className="btn btn-primary">
+            <Plus className="icon-md" />
+            Nueva Ubicación
+          </Link>
+        </div>
+      </div>
 
-      <Link to="/dashboard/ubicaciones/nuevo" style={{ display: "inline-block", marginBottom: "10px" }}>
-        ➕ Nueva Ubicación
-      </Link>
+      {/* Filter Bar */}
+      <div className="filter-bar">
+        <div className="search-box">
+          <Search className="search-icon icon-md" />
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Buscar por provincia, ciudad o cantón..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+      </div>
 
-      <table border="1" cellPadding="8" style={{ marginTop: "20px", width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Provincia</th>
-            <th>Ciudad</th>
-            <th>Cantón</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
+      {/* Data Table */}
+      {filteredUbicaciones.length === 0 ? (
+        <div className="empty-state">
+          <MapPin className="empty-state-icon" size={64} />
+          <h3>No se encontraron ubicaciones</h3>
+          <p>Intente ajustar la búsqueda o agregue una nueva ubicación</p>
+          <Link to="/ubicaciones/nuevo" className="btn btn-primary">
+            <Plus className="icon-md" />
+            Crear Primera Ubicación
+          </Link>
+        </div>
+      ) : (
+        <div className="data-table-wrapper">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Provincia</th>
+                <th>Ciudad</th>
+                <th>Cantón</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredUbicaciones.map((u) => (
+                <tr key={u.id}>
+                  <td className="table-id">#{u.id}</td>
+                  <td>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <Map className="icon-sm" style={{ color: "var(--color-primary)" }} />
+                      <span className="table-primary">{u.provincia_nombre}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <Building className="icon-sm" style={{ color: "var(--color-info)" }} />
+                      <span className="table-secondary">{u.ciudad_nombre}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <MapPin className="icon-sm" style={{ color: "var(--color-success)" }} />
+                      <span className="table-secondary">{u.canton_nombre}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="action-buttons">
+                      <Link
+                        to={`/ubicaciones/editar/${u.id}`}
+                        className="btn-icon btn-edit"
+                        title="Editar ubicación"
+                      >
+                        <Edit className="icon-md" />
+                      </Link>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-        <tbody>
-          {ubicaciones.map((u) => (
-            <tr key={u.id}>
-              <td>{u.id}</td>
-              <td>{u.provincia_nombre}</td>
-              <td>{u.ciudad_nombre}</td>
-              <td>{u.canton_nombre}</td>
-              <td>
-                <Link to={`/dashboard/ubicaciones/editar/${u.id}`}>✏️ Editar</Link>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* Info Card */}
+      <div className="info-card">
+        <div className="info-card-icon">
+          <MapPin className="icon-lg" />
+        </div>
+        <div className="info-card-content">
+          <h4>Organización Geográfica</h4>
+          <p>
+            Las ubicaciones están organizadas jerárquicamente: Provincia →
+            Ciudad → Cantón. Esta estructura permite una gestión precisa de los
+            tachos distribuidos en todo el territorio.
+          </p>
+        </div>
+      </div>
     </div>
   );
 };

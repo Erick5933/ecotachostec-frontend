@@ -44,11 +44,11 @@ export default function UserLayout() {
   };
 
   const navItems = [
-    { id: "inicio", label: "Inicio", icon: "🏠" },
-    { id: "proyecto", label: "El Proyecto", icon: "🌿" },
-    { id: "tachos", label: "Nuestros Tachos", icon: "🗑️" },
-    { id: "tecnologia", label: "Tecnología", icon: "🤖" },
-    { id: "impacto", label: "Impacto", icon: "🌍" },
+    { id: "inicio", label: "Inicio", icon: "" },
+    { id: "proyecto", label: "Proyecto", icon: "" },
+    { id: "tachos", label: "Nuestros Tachos", icon: "" },
+    { id: "tecnologia", label: "Tecnología", icon: "" },
+    { id: "impacto", label: "Impacto", icon: "" },
   ];
 
   return (
@@ -84,10 +84,10 @@ export default function UserLayout() {
             {user ? (
               <>
                 <Link to="/portal" className="btn-user btn-user-primary">
-                  📊 Mi Portal
+                  Mi Portal
                 </Link>
                 <button onClick={handleLogout} className="btn-user btn-user-secondary">
-                  🚪 Salir
+                   Salir
                 </button>
                 <div className="user-avatar-nav">
                   <span className="user-avatar-icon">👤</span>
@@ -146,7 +146,7 @@ export default function UserLayout() {
                     onClick={handleLogout}
                     className="btn-user btn-user-secondary btn-user-block"
                   >
-                    🚪 Salir
+                     Salir
                   </button>
                 </>
               ) : (
@@ -193,7 +193,7 @@ export default function UserLayout() {
             <ul className="footer-links">
               <li>
                 <button onClick={() => scrollToSection("proyecto")}>
-                  El Proyecto
+                  Proyecto
                 </button>
               </li>
               <li>

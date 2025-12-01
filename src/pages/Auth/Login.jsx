@@ -86,7 +86,7 @@ export default function Login() {
 
             <div className="form-group">
               <label htmlFor="email" className="form-label">
-                📧 Correo Electrónico
+                 Correo Electrónico
               </label>
               <input
                 type="email"
@@ -103,7 +103,7 @@ export default function Login() {
 
             <div className="form-group">
               <label htmlFor="password" className="form-label">
-                🔒 Contraseña
+                 Contraseña
               </label>
               <div className="password-input-wrapper">
                 <input
@@ -168,20 +168,6 @@ export default function Login() {
           </div>
         </div>
 
-        <div className="auth-features">
-          <div className="auth-feature-item">
-            <span className="auth-feature-icon">🔒</span>
-            <span className="auth-feature-text">Conexión segura</span>
-          </div>
-          <div className="auth-feature-item">
-            <span className="auth-feature-icon">🌍</span>
-            <span className="auth-feature-text">Acceso global</span>
-          </div>
-          <div className="auth-feature-item">
-            <span className="auth-feature-icon">⚡</span>
-            <span className="auth-feature-text">Rápido y eficiente</span>
-          </div>
-        </div>
       </div>
     </div>
   );

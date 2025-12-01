@@ -1,23 +1,97 @@
 // src/pages/Auth/Register.jsx
-import { useState, useContext } from "react";
+import { useState, useEffect, useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../../context/AuthContext";
 import { register } from "../../api/authApi";
+
+import {
+  getProvincias,
+  getCiudades,
+  getCantones,
+} from "../../api/ubicacionApi";
+
 import "./auth.css";
 
 export default function Register() {
   const navigate = useNavigate();
   const { loginUser } = useContext(AuthContext);
+
   const [formData, setFormData] = useState({
     nombre: "",
     email: "",
+    telefono: "",
+    provincia: "",
+    ciudad: "",
+    canton: "",
     password: "",
     confirmPassword: "",
   });
+
+  const [provincias, setProvincias] = useState([]);
+  const [ciudades, setCiudades] = useState([]);
+  const [cantones, setCantones] = useState([]);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Carga inicial
+  useEffect(() => {
+    loadProvincias();
+  }, []);
+
+  const loadProvincias = async () => {
+    try {
+      const res = await getProvincias();
+      setProvincias(res.data);
+    } catch (err) {
+      console.error("Error cargando provincias", err);
+    }
+  };
+
+  const handleProvinciaChange = async (e) => {
+    const provinciaId = e.target.value;
+
+    setFormData({
+      ...formData,
+      provincia: provinciaId,
+      ciudad: "",
+      canton: "",
+    });
+
+    try {
+      const resCiudades = await getCiudades();
+      const filtradas = resCiudades.data.filter(
+        (c) => c.provincia === Number(provinciaId)
+      );
+      setCiudades(filtradas);
+      setCantones([]);
+    } catch (err) {
+      console.error("Error cargando ciudades", err);
+    }
+  };
+
+  const handleCiudadChange = async (e) => {
+    const ciudadId = e.target.value;
+
+    setFormData({
+      ...formData,
+      ciudad: ciudadId,
+      canton: "",
+    });
+
+    try {
+      const resCantones = await getCantones();
+      const filtradas = resCantones.data.filter(
+        (c) => c.ciudad === Number(ciudadId)
+      );
+      setCantones(filtradas);
+    } catch (err) {
+      console.error("Error cargando cantones", err);
+    }
+  };
 
   const handleChange = (e) => {
     setFormData({
@@ -27,6 +101,7 @@ export default function Register() {
     setError("");
   };
 
+  // Validaciones
   const validateForm = () => {
     if (formData.password !== formData.confirmPassword) {
       setError("Las contraseñas no coinciden");
@@ -38,30 +113,39 @@ export default function Register() {
       return false;
     }
 
+    if (!formData.canton) {
+      setError("Selecciona tu provincia, ciudad y cantón");
+      return false;
+    }
+
     return true;
   };
 
+  // SUBMIT (Aquí agregamos el rol = "user")
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     if (!validateForm()) return;
 
     setLoading(true);
     setError("");
 
     try {
-      const { confirmPassword, ...registerData } = formData;
-      const response = await register(registerData);
+      const { confirmPassword, ...dataToSend } = formData;
+
+      // 👇 AGREGAMOS EL ROL AUTOMÁTICAMENTE
+      dataToSend.rol = "user";
+
+      const response = await register(dataToSend);
       const { token, user } = response.data;
 
       loginUser(user, token);
       navigate("/portal");
     } catch (err) {
-      console.error("Error al registrarse", err);
+      console.error("Error registrando usuario:", err);
       setError(
         err.response?.data?.message ||
-        err.response?.data?.email?.[0] ||
-        "Error al crear la cuenta. Por favor, intenta nuevamente."
+          err.response?.data?.email?.[0] ||
+          "Error al crear la cuenta. Intenta nuevamente."
       );
     } finally {
       setLoading(false);
@@ -94,110 +178,148 @@ export default function Register() {
           </div>
 
           <form onSubmit={handleSubmit} className="auth-form">
-            {error && (
-              <div className="alert alert-error">
-                ⚠️ {error}
-              </div>
-            )}
+            {error && <div className="alert alert-error">⚠️ {error}</div>}
 
+            {/* Nombre */}
             <div className="form-group">
-              <label htmlFor="nombre" className="form-label">
-                👤 Nombre Completo
-              </label>
+              <label className="form-label">Nombre Completo</label>
               <input
                 type="text"
-                id="nombre"
                 name="nombre"
                 value={formData.nombre}
                 onChange={handleChange}
                 className="form-input"
-                placeholder="Juan Pérez"
                 required
-                autoComplete="name"
               />
             </div>
 
+            {/* Teléfono */}
             <div className="form-group">
-              <label htmlFor="email" className="form-label">
-                📧 Correo Electrónico
-              </label>
+              <label className="form-label">Teléfono</label>
+              <input
+                type="text"
+                name="telefono"
+                value={formData.telefono}
+                onChange={handleChange}
+                className="form-input"
+                required
+              />
+            </div>
+
+            {/* Email */}
+            <div className="form-group">
+              <label className="form-label">Correo Electrónico</label>
               <input
                 type="email"
-                id="email"
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
                 className="form-input"
-                placeholder="tu@email.com"
                 required
-                autoComplete="email"
               />
             </div>
 
+            {/* Provincia */}
             <div className="form-group">
-              <label htmlFor="password" className="form-label">
-                🔒 Contraseña
-              </label>
+              <label className="form-label">Provincia</label>
+              <select
+                name="provincia"
+                value={formData.provincia}
+                onChange={handleProvinciaChange}
+                className="form-input"
+                required
+              >
+                <option value="">Selecciona provincia</option>
+                {provincias.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Ciudad */}
+            <div className="form-group">
+              <label className="form-label">Ciudad</label>
+              <select
+                name="ciudad"
+                value={formData.ciudad}
+                onChange={handleCiudadChange}
+                className="form-input"
+                required
+              >
+                <option value="">Selecciona ciudad</option>
+                {ciudades.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Cantón */}
+            <div className="form-group">
+              <label className="form-label">Cantón</label>
+              <select
+                name="canton"
+                value={formData.canton}
+                onChange={handleChange}
+                className="form-input"
+                required
+              >
+                <option value="">Selecciona cantón</option>
+                {cantones.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Password */}
+            <div className="form-group">
+              <label className="form-label">Contraseña</label>
               <div className="password-input-wrapper">
                 <input
                   type={showPassword ? "text" : "password"}
-                  id="password"
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
                   className="form-input"
-                  placeholder="Mínimo 6 caracteres"
                   required
-                  autoComplete="new-password"
                 />
                 <button
                   type="button"
                   className="password-toggle"
                   onClick={() => setShowPassword(!showPassword)}
-                  aria-label="Toggle password visibility"
                 >
                   {showPassword ? "👁️" : "👁️‍🗨️"}
                 </button>
               </div>
             </div>
 
+            {/* Confirm Password */}
             <div className="form-group">
-              <label htmlFor="confirmPassword" className="form-label">
-                🔒 Confirmar Contraseña
-              </label>
+              <label className="form-label">Confirmar Contraseña</label>
               <div className="password-input-wrapper">
                 <input
                   type={showConfirmPassword ? "text" : "password"}
-                  id="confirmPassword"
                   name="confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleChange}
                   className="form-input"
-                  placeholder="Repite tu contraseña"
                   required
-                  autoComplete="new-password"
                 />
                 <button
                   type="button"
                   className="password-toggle"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  aria-label="Toggle confirm password visibility"
+                  onClick={() =>
+                    setShowConfirmPassword(!showConfirmPassword)
+                  }
                 >
                   {showConfirmPassword ? "👁️" : "👁️‍🗨️"}
                 </button>
               </div>
-            </div>
-
-            <div className="form-options">
-              <label className="checkbox-label">
-                <input type="checkbox" required />
-                <span>
-                  Acepto los{" "}
-                  <Link to="/terms" className="inline-link">
-                    términos y condiciones
-                  </Link>
-                </span>
-              </label>
             </div>
 
             <button
@@ -228,28 +350,6 @@ export default function Register() {
               </Link>
             </p>
           </div>
-        </div>
-
-        <div className="auth-benefits">
-          <h3 className="auth-benefits-title">Al registrarte obtienes:</h3>
-          <ul className="auth-benefits-list">
-            <li>
-              <span className="benefit-icon">✓</span>
-              Acceso completo al dashboard de datos
-            </li>
-            <li>
-              <span className="benefit-icon">✓</span>
-              Visualización de tachos en tiempo real
-            </li>
-            <li>
-              <span className="benefit-icon">✓</span>
-              Reportes y estadísticas detalladas
-            </li>
-            <li>
-              <span className="benefit-icon">✓</span>
-              Notificaciones de eventos importantes
-            </li>
-          </ul>
         </div>
       </div>
     </div>
