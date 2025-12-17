@@ -49,6 +49,7 @@ export default function UserLayout() {
     { id: "tachos", label: "Nuestros Tachos", icon: "" },
     { id: "tecnologia", label: "Tecnología", icon: "" },
     { id: "impacto", label: "Impacto", icon: "" },
+     {id: "ia", label: "IA", icon: "" },
   ];
 
   return (

@@ -1,14 +1,23 @@
 // src/pages/Detecciones/DeteccionList.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Brain, Search, Eye, MapPin, Calendar, Tag } from "lucide-react";
+import { Brain, Search, Eye, MapPin, Calendar, Tag, Camera, Upload, Scan, CheckCircle2, X } from "lucide-react";
 import api from "../../api/axiosConfig";
+import CameraCapture from "../../components/CameraCapture/CameraCapture";
+import AIProcessor from "../../components/AIProcessor/AIProcessor";
 import "../adminPages.css";
 
 const DeteccionList = () => {
   const [detecciones, setDetecciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // Estados para IA
+  const [showCameraModal, setShowCameraModal] = useState(false);
+  const [capturedImage, setCapturedImage] = useState(null);
+  const [showAIProcessor, setShowAIProcessor] = useState(false);
+  const fileInputRef = useRef(null);
+  const aiSectionRef = useRef(null);
 
   const loadDetecciones = async () => {
     try {
@@ -24,6 +33,65 @@ const DeteccionList = () => {
   useEffect(() => {
     loadDetecciones();
   }, []);
+
+  // FUNCIÓN PARA CAPTURAR IMAGEN DESDE CÁMARA
+  const handleImageCapture = (imageData) => {
+    setCapturedImage(imageData);
+    setShowAIProcessor(true);
+    setShowCameraModal(false);
+    
+    // Scroll automático a la sección de IA
+    setTimeout(() => {
+      aiSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  };
+
+  // FUNCIÓN PARA ABRIR CÁMARA
+  const handleOpenCamera = () => {
+    setShowCameraModal(true);
+  };
+
+  // FUNCIÓN PARA SUBIR IMAGEN DESDE ARCHIVO
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        alert('Por favor, selecciona un archivo de imagen válido.');
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        alert('La imagen es demasiado grande. Máximo 5MB.');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setCapturedImage(event.target.result);
+        setShowAIProcessor(true);
+        
+        // Scroll automático
+        setTimeout(() => {
+          aiSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // FUNCIÓN PARA ABRIR SELECTOR DE ARCHIVOS
+  const handleOpenFileSelector = () => {
+    fileInputRef.current?.click();
+  };
+
+  // FUNCIÓN PARA REINICIAR
+  const handleResetImage = () => {
+    setCapturedImage(null);
+    setShowAIProcessor(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   const filteredDetecciones = detecciones.filter((det) =>
     det.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -54,6 +122,249 @@ const DeteccionList = () => {
           </p>
         </div>
       </div>
+
+      {/* SECCIÓN DE ANÁLISIS CON IA */}
+      <div className="ai-preview-card" style={{
+        background: 'linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%)',
+        border: '2px solid #e2e8f0',
+        borderRadius: '16px',
+        padding: '24px',
+        marginBottom: '32px',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)'
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+          <div style={{ 
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            gap: '8px',
+            padding: '8px 16px',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            borderRadius: '20px',
+            fontSize: '14px',
+            fontWeight: '600',
+            marginBottom: '16px'
+          }}>
+            <Brain size={16} />
+            <span>Análisis con IA en Tiempo Real</span>
+          </div>
+          
+          <h3 style={{ 
+            fontSize: '24px', 
+            fontWeight: '700', 
+            color: '#1a202c',
+            margin: '0 0 8px 0'
+          }}>
+            Clasificador Inteligente de Residuos
+          </h3>
+          
+          <p style={{ 
+            fontSize: '14px', 
+            color: '#666',
+            margin: 0
+          }}>
+            Sube una foto o usa la cámara para clasificar residuos automáticamente con Roboflow
+          </p>
+        </div>
+
+        {/* PREVIEW DE IMAGEN */}
+        <div style={{
+          background: '#000',
+          borderRadius: '12px',
+          overflow: 'hidden',
+          marginBottom: '20px',
+          minHeight: '280px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          position: 'relative'
+        }}>
+          {capturedImage ? (
+            <>
+              <img 
+                src={capturedImage} 
+                alt="Preview" 
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  maxHeight: '400px'
+                }}
+              />
+              <div style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                background: 'rgba(16, 185, 129, 0.9)',
+                color: 'white',
+                padding: '8px 16px',
+                borderRadius: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '13px',
+                fontWeight: '600',
+                backdropFilter: 'blur(10px)'
+              }}>
+                <CheckCircle2 size={16} />
+                <span>Imagen lista</span>
+              </div>
+            </>
+          ) : (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '16px',
+              padding: '40px 20px',
+              color: '#9ca3af'
+            }}>
+              <Camera size={64} style={{ opacity: 0.6 }} />
+              <p style={{ margin: 0, fontSize: '16px', fontWeight: '500' }}>
+                Captura o sube una imagen para analizar
+              </p>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '13px',
+                color: '#6b7280'
+              }}>
+                <Scan size={16} />
+                <span>La IA detectará y clasificará automáticamente</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* BOTONES DE CONTROL */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: capturedImage ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)',
+          gap: '12px',
+          marginBottom: '16px'
+        }}>
+          <button 
+            onClick={handleOpenCamera}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: '14px 20px',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '10px',
+              fontSize: '15px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)'
+            }}
+            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+          >
+            <Camera size={20} />
+            <span>Abrir Cámara</span>
+          </button>
+
+          <button 
+            onClick={handleOpenFileSelector}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: '14px 20px',
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '10px',
+              fontSize: '15px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+            }}
+            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+          >
+            <Upload size={20} />
+            <span>Subir Imagen</span>
+          </button>
+
+          {capturedImage && (
+            <button 
+              onClick={handleResetImage}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '14px 20px',
+                background: '#ef4444',
+                color: 'white',
+                border: 'none',
+                borderRadius: '10px',
+                fontSize: '15px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease'
+              }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+            >
+              <X size={20} />
+              <span>Eliminar</span>
+            </button>
+          )}
+        </div>
+
+        {/* Input oculto para archivos */}
+        <input 
+          ref={fileInputRef}
+          type="file" 
+          accept="image/*" 
+          onChange={handleImageUpload}
+          style={{ display: 'none' }}
+        />
+
+        {/* INFO */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          padding: '12px 16px',
+          background: '#eff6ff',
+          border: '1px solid #bfdbfe',
+          borderRadius: '8px',
+          fontSize: '13px',
+          color: '#1e40af'
+        }}>
+          <Scan size={16} />
+          <span>
+            {capturedImage 
+              ? "Imagen cargada. Desplázate hacia abajo para iniciar el análisis con IA." 
+              : "Utiliza la cámara o sube una imagen para clasificar residuos con Roboflow."
+            }
+          </span>
+        </div>
+      </div>
+
+      {/* PROCESADOR IA */}
+      {showAIProcessor && capturedImage && (
+        <div ref={aiSectionRef} className="ai-processor-container" style={{
+          background: 'white',
+          borderRadius: '16px',
+          padding: '28px',
+          marginBottom: '32px',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
+          border: '2px solid #e2e8f0'
+        }}>
+          <AIProcessor capturedImage={capturedImage} />
+        </div>
+      )}
 
       {/* Filter Bar */}
       <div className="filter-bar">
@@ -149,14 +460,22 @@ const DeteccionList = () => {
           <Brain className="icon-lg" />
         </div>
         <div className="info-card-content">
-          <h4>Inteligencia Artificial</h4>
+          <h4>Inteligencia Artificial con Roboflow</h4>
           <p>
-            El sistema utiliza modelos de deep learning entrenados con
-            TensorFlow para identificar y clasificar automáticamente diferentes
-            tipos de residuos en tiempo real, logrando una precisión del 95%.
+            El sistema utiliza Roboflow Workflow para identificar y clasificar 
+            automáticamente diferentes tipos de residuos en tiempo real, 
+            logrando alta precisión en la detección de orgánicos, reciclables e inorgánicos.
           </p>
         </div>
       </div>
+
+      {/* MODAL DE CÁMARA */}
+      {showCameraModal && (
+        <CameraCapture
+          onCapture={handleImageCapture}
+          onClose={() => setShowCameraModal(false)}
+        />
+      )}
     </div>
   );
 };

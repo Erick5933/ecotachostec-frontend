@@ -3,12 +3,14 @@ import { useEffect, useState, useContext, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../../context/AuthContext";
 import api from "../../api/axiosConfig";
+import CameraCapture from "../../components/CameraCapture/CameraCapture";
+import AIProcessor from "../../components/AIProcessor/AIProcessor";
 import {
   User, Activity, TrendingUp, Trash2, Brain, MapPin,
   Clock, CheckCircle, AlertCircle, BarChart3,
   Package, Zap, Eye, Calendar, Filter,
   ArrowRight, RefreshCw, Download, Search,
-  Target, Award, Sparkles, Radio
+  Target, Award, Sparkles, Radio, Camera, Upload, X, Scan, CheckCircle2
 } from "lucide-react";
 import "./userPortal.css";
 
@@ -31,6 +33,13 @@ export default function UserPortal() {
     totalDetecciones: 0,
     totalUbicaciones: 0,
   });
+
+  // Estados para IA
+  const [showCameraModal, setShowCameraModal] = useState(false);
+  const [capturedImage, setCapturedImage] = useState(null);
+  const [showAIProcessor, setShowAIProcessor] = useState(false);
+  const fileInputRef = useRef(null);
+  const aiSectionRef = useRef(null);
 
   // Refs para animaciones
   const statsRef = useRef(null);
@@ -94,6 +103,59 @@ export default function UserPortal() {
   const handleRefresh = () => {
     setLoading(true);
     loadPortalData();
+  };
+
+  // FUNCIONES PARA IA
+  const handleImageCapture = (imageData) => {
+    setCapturedImage(imageData);
+    setShowAIProcessor(true);
+    setShowCameraModal(false);
+    
+    setTimeout(() => {
+      aiSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  };
+
+  const handleOpenCamera = () => {
+    setShowCameraModal(true);
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        alert('Por favor, selecciona un archivo de imagen válido.');
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        alert('La imagen es demasiado grande. Máximo 5MB.');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setCapturedImage(event.target.result);
+        setShowAIProcessor(true);
+        
+        setTimeout(() => {
+          aiSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleOpenFileSelector = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleResetImage = () => {
+    setCapturedImage(null);
+    setShowAIProcessor(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const filteredTachos = tachos.filter(tacho =>
@@ -436,14 +498,257 @@ export default function UserPortal() {
         </div>
       )}
 
-      {/* Vista de Detecciones */}
+      {/* Vista de Detecciones CON IA */}
       {activeView === "detecciones" && (
         <div className="portal-view">
+          {/* SECCIÓN DE ANÁLISIS CON IA */}
+          <div style={{
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            borderRadius: '16px',
+            padding: '24px',
+            marginBottom: '24px',
+            boxShadow: '0 8px 32px rgba(102, 126, 234, 0.3)',
+            color: 'white'
+          }}>
+            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+              <div style={{ 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                gap: '8px',
+                padding: '8px 16px',
+                background: 'rgba(255, 255, 255, 0.2)',
+                borderRadius: '20px',
+                fontSize: '14px',
+                fontWeight: '600',
+                marginBottom: '16px',
+                backdropFilter: 'blur(10px)'
+              }}>
+                <Brain size={16} />
+                <span>Análisis con IA en Tiempo Real</span>
+              </div>
+              
+              <h3 style={{ 
+                fontSize: '24px', 
+                fontWeight: '700',
+                margin: '0 0 8px 0'
+              }}>
+                Clasificador Inteligente de Residuos
+              </h3>
+              
+              <p style={{ 
+                fontSize: '14px',
+                margin: 0,
+                opacity: 0.9
+              }}>
+                Sube una foto o usa la cámara para clasificar residuos con Roboflow
+              </p>
+            </div>
+
+            {/* PREVIEW DE IMAGEN */}
+            <div style={{
+              background: '#000',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              marginBottom: '20px',
+              minHeight: '280px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
+              border: '2px solid rgba(255, 255, 255, 0.1)'
+            }}>
+              {capturedImage ? (
+                <>
+                  <img 
+                    src={capturedImage} 
+                    alt="Preview" 
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                      maxHeight: '400px'
+                    }}
+                  />
+                  <div style={{
+                    position: 'absolute',
+                    top: '16px',
+                    right: '16px',
+                    background: 'rgba(16, 185, 129, 0.9)',
+                    color: 'white',
+                    padding: '8px 16px',
+                    borderRadius: '20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    backdropFilter: 'blur(10px)'
+                  }}>
+                    <CheckCircle2 size={16} />
+                    <span>Imagen lista</span>
+                  </div>
+                </>
+              ) : (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '16px',
+                  padding: '40px 20px',
+                  color: '#9ca3af'
+                }}>
+                  <Camera size={64} style={{ opacity: 0.6 }} />
+                  <p style={{ margin: 0, fontSize: '16px', fontWeight: '500', color: 'white' }}>
+                    Captura o sube una imagen para analizar
+                  </p>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '13px',
+                    color: 'rgba(255, 255, 255, 0.7)'
+                  }}>
+                    <Scan size={16} />
+                    <span>La IA detectará y clasificará automáticamente</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* BOTONES DE CONTROL */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: capturedImage ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)',
+              gap: '12px',
+              marginBottom: '16px'
+            }}>
+              <button 
+                onClick={handleOpenCamera}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  padding: '14px 20px',
+                  background: 'rgba(255, 255, 255, 0.95)',
+                  color: '#667eea',
+                  border: 'none',
+                  borderRadius: '10px',
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
+                }}
+                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                <Camera size={20} />
+                <span>Abrir Cámara</span>
+              </button>
+
+              <button 
+                onClick={handleOpenFileSelector}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  padding: '14px 20px',
+                  background: 'rgba(255, 255, 255, 0.95)',
+                  color: '#10b981',
+                  border: 'none',
+                  borderRadius: '10px',
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
+                }}
+                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                <Upload size={20} />
+                <span>Subir Imagen</span>
+              </button>
+
+              {capturedImage && (
+                <button 
+                  onClick={handleResetImage}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    padding: '14px 20px',
+                    background: '#ef4444',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '10px',
+                    fontSize: '15px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                  onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                  <X size={20} />
+                  <span>Eliminar</span>
+                </button>
+              )}
+            </div>
+
+            {/* Input oculto */}
+            <input 
+              ref={fileInputRef}
+              type="file" 
+              accept="image/*" 
+              onChange={handleImageUpload}
+              style={{ display: 'none' }}
+            />
+
+            {/* INFO */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '12px 16px',
+              background: 'rgba(255, 255, 255, 0.15)',
+              borderRadius: '8px',
+              fontSize: '13px',
+              backdropFilter: 'blur(10px)'
+            }}>
+              <Scan size={16} />
+              <span>
+                {capturedImage 
+                  ? "Imagen cargada. Desplázate hacia abajo para iniciar el análisis." 
+                  : "Utiliza la cámara o sube una imagen para clasificar residuos."
+                }
+              </span>
+            </div>
+          </div>
+
+          {/* PROCESADOR IA */}
+          {showAIProcessor && capturedImage && (
+            <div ref={aiSectionRef} style={{
+              background: 'white',
+              borderRadius: '16px',
+              padding: '28px',
+              marginBottom: '24px',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
+              border: '2px solid #e2e8f0'
+            }}>
+              <AIProcessor capturedImage={capturedImage} />
+            </div>
+          )}
+
+          {/* TABLA DE DETECCIONES */}
           <div className="portal-card">
             <div className="portal-card-header">
               <div className="card-header-left">
                 <Brain size={24} className="header-icon" />
-                <h3 className="portal-card-title">Detecciones de Inteligencia Artificial</h3>
+                <h3 className="portal-card-title">Historial de Detecciones</h3>
               </div>
               <div className="card-header-actions">
                 <div className="search-box">
@@ -548,6 +853,14 @@ export default function UserPortal() {
           </p>
         </div>
       </div>
+
+      {/* MODAL DE CÁMARA */}
+      {showCameraModal && (
+        <CameraCapture
+          onCapture={handleImageCapture}
+          onClose={() => setShowCameraModal(false)}
+        />
+      )}
     </div>
   );
 }

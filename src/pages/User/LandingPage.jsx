@@ -2,12 +2,16 @@ import { useContext, useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { AuthContext } from "../../context/AuthContext";
 import api from "../../api/axiosConfig";
+import CameraCapture from "../../components/CameraCapture/CameraCapture";
+import AIProcessor from "../../components/AIProcessor/AIProcessor";
 import {
   Leaf, Target, Lightbulb, Globe, Radio, Thermometer,
   MapPin, Battery, Settings, Palette, Brain, Cloud,
   TrendingDown, Zap, CheckCircle, ArrowRight,
-  ArrowDown, BarChart3, Recycle, Trash2, Scan
+  ArrowDown, BarChart3, Recycle, Trash2, Scan,
+  Camera, Upload, CheckCircle2, AlertCircle
 } from "lucide-react";
+
 import "./landingPage.css";
 
 export default function LandingPage() {
@@ -18,18 +22,26 @@ export default function LandingPage() {
     ubicaciones: 0,
   });
 
+  // Estado para modal de cámara
+  const [showCameraModal, setShowCameraModal] = useState(false);
+  const [capturedImage, setCapturedImage] = useState(null);
+  const [showAIProcessor, setShowAIProcessor] = useState(false);
+  const fileInputRef = useRef(null);
+
   // Refs para intersection observer
   const heroRef = useRef(null);
   const proyectoRef = useRef(null);
   const tachosRef = useRef(null);
   const tecnologiaRef = useRef(null);
   const impactoRef = useRef(null);
+  const iaSectionRef = useRef(null);
 
-  const [visibleSections, setVisibleSections] = useState({
+   const [visibleSections, setVisibleSections] = useState({
     proyecto: false,
     tachos: false,
     tecnologia: false,
     impacto: false,
+    ia: false,
   });
 
   useEffect(() => {
@@ -82,7 +94,7 @@ export default function LandingPage() {
       });
     }, options);
 
-    [proyectoRef, tachosRef, tecnologiaRef, impactoRef].forEach(ref => {
+    [proyectoRef, tachosRef, tecnologiaRef, impactoRef, iaSectionRef].forEach(ref => {
       if (ref.current) observer.observe(ref.current);
     });
 
@@ -104,6 +116,66 @@ export default function LandingPage() {
     return () => window.removeEventListener('scroll', handleScroll);
   };
 
+   // FUNCIÓN PARA CAPTURAR IMAGEN
+  const handleImageCapture = (imageData) => {
+    setCapturedImage(imageData);
+    setShowAIProcessor(true);
+    setShowCameraModal(false);
+    
+    // Scroll automático a la sección de IA
+    setTimeout(() => {
+      iaSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
+  // FUNCIÓN PARA SUBIR IMAGEN DESDE ARCHIVO
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        alert('Por favor, selecciona un archivo de imagen válido.');
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        alert('La imagen es demasiado grande. Máximo 5MB.');
+        return;
+      }
+
+      const reader = new FileReader();
+      
+      reader.onload = (event) => {
+        setCapturedImage(event.target.result);
+        setShowAIProcessor(true);
+        
+        // Scroll automático a la sección de IA
+        setTimeout(() => {
+          iaSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      };
+      
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // FUNCIÓN PARA ABRIR CÁMARA
+  const handleOpenCamera = () => {
+    setShowCameraModal(true);
+  };
+
+  // FUNCIÓN PARA ABRIR SELECTOR DE ARCHIVOS
+  const handleOpenFileSelector = () => {
+    fileInputRef.current?.click();
+  };
+
+  // FUNCIÓN PARA REINICIAR
+  const handleResetImage = () => {
+    setCapturedImage(null);
+    setShowAIProcessor(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
   return (
     <div className="landing-page">
 
@@ -460,6 +532,157 @@ export default function LandingPage() {
         </div>
       </section>
 
+       
+      
+      {/* SECCIÓN DE IA - CLASIFICACIÓN INTELIGENTE */}
+      <section 
+        ref={iaSectionRef} 
+        id="ia" 
+        className={`section section-light ${visibleSections.ia ? "section-visible" : ""}`}
+        style={{ paddingTop: 'var(--space-xxl)', paddingBottom: 'var(--space-xxl)' }}
+      >
+        <div className="section-container">
+          <div className="section-header">
+            <span className="section-badge">
+              <Brain size={16} />
+              <span>Probá Nuestra IA</span>
+            </span>
+
+            <h2 className="section-title">Clasificación Inteligente de Residuos</h2>
+
+            <p className="section-description">
+              Captura o sube una foto para que nuestra IA analice y clasifique automáticamente 
+              el tipo de residuo en tiempo real usando YOLO + RoboFlow.
+            </p>
+          </div>
+
+          {/* CONTENEDOR DE IMAGEN Y CONTROLES */}
+          <div className="ia-camera-container">
+            <div className="camera-preview-section">
+              <div className="camera-preview-wrapper">
+                <div className="camera-preview">
+                  {capturedImage ? (
+                    <>
+                      <img 
+                        src={capturedImage} 
+                        alt="Imagen para análisis" 
+                        className="camera-preview-image"
+                      />
+                      <div className="preview-overlay">
+                        <div className="preview-badge">
+                          <CheckCircle2 size={16} />
+                          <span>Imagen lista para análisis</span>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="camera-placeholder">
+                      <Camera size={64} className="camera-placeholder-icon" />
+                      <p className="camera-placeholder-text">
+                        Captura una foto o sube una imagen para analizar con IA
+                      </p>
+                      <div className="camera-placeholder-hint">
+                        <Scan size={20} />
+                        <span>La IA detectará y clasificará automáticamente</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* CONTROLES DE CÁMARA */}
+              <div className="camera-controls-section">
+                <div className="camera-controls-grid">
+                  <button 
+                    className="camera-control-btn primary"
+                    onClick={handleOpenCamera}
+                  >
+                    <Camera size={20} />
+                    <span>Abrir Cámara</span>
+                  </button>
+
+                  <button 
+                    className="camera-control-btn secondary"
+                    onClick={handleOpenFileSelector}
+                  >
+                    <Upload size={20} />
+                    <span>Subir Imagen</span>
+                  </button>
+
+                  {/* Input oculto para selección de archivos */}
+                  <input 
+                    ref={fileInputRef}
+                    type="file" 
+                    accept="image/*" 
+                    onChange={handleImageUpload}
+                    style={{ display: 'none' }}
+                  />
+
+                  {capturedImage && (
+                    <button 
+                      className="camera-control-btn reset"
+                      onClick={handleResetImage}
+                    >
+                      <span>×</span>
+                      <span>Eliminar</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="camera-info">
+                  <Scan size={16} />
+                  <span>
+                    {capturedImage 
+                      ? "La imagen está lista. Haz clic en 'Iniciar Análisis IA' para procesarla." 
+                      : "Utiliza cámara en vivo o sube una imagen existente para clasificar residuos."
+                    }
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* PROCESADOR IA - SOLO SE MUESTRA CUANDO HAY IMAGEN */}
+            {showAIProcessor && capturedImage && (
+              <div className="ai-processor-wrapper">
+                <AIProcessor capturedImage={capturedImage} />
+              </div>
+            )}
+
+            {/* MENSAJE DE INFORMACIÓN CUANDO NO HAY IMAGEN */}
+            {!capturedImage && (
+              <div className="ia-info-section">
+                <div className="ia-info-card">
+                  <div className="ia-info-header">
+                    <Zap size={24} />
+                    <h4>¿Cómo funciona?</h4>
+                  </div>
+                  <div className="ia-info-steps">
+                    <div className="ia-step">
+                      <div className="step-number">1</div>
+                      <div className="step-content">
+                        <strong>Captura o sube</strong> una imagen de residuos
+                      </div>
+                    </div>
+                    <div className="ia-step">
+                      <div className="step-number">2</div>
+                      <div className="step-content">
+                        <strong>Inicia el análisis</strong> con nuestro modelo YOLO
+                      </div>
+                    </div>
+                    <div className="ia-step">
+                      <div className="step-number">3</div>
+                      <div className="step-content">
+                        <strong>Recibe resultados</strong> detallados de clasificación
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+     
       {/* CTA FINAL */}
       {!user && (
         <section className="final-cta">
@@ -485,6 +708,14 @@ export default function LandingPage() {
 
           </div>
         </section>
+      )}
+      
+        {/* MODAL DE CÁMARA */}
+      {showCameraModal && (
+        <CameraCapture
+          onCapture={handleImageCapture}
+          onClose={() => setShowCameraModal(false)}
+        />
       )}
 
     </div>
