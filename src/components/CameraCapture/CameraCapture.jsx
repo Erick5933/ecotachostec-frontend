@@ -8,6 +8,28 @@ import {
 
 } from "../../api/deteccionApi";
 
+const CATEGORY_INFO = {
+  organico: {
+    label: "Orgánico",
+    icon: "🍃",
+    color: "#22c55e",
+  },
+  inorganico: {
+    label: "Inorgánico",
+    icon: "🧴",
+    color: "#3b82f6",
+  },
+  reciclable: {
+    label: "Reciclable",
+    icon: "♻️",
+    color: "#facc15",
+  },
+  peligroso: {
+    label: "Peligroso",
+    icon: "☠️",
+    color: "#ef4444",
+  },
+};
 export default function CameraCapture({ onCapture, onClose }) {
   const [mode, setMode] = useState("preview");
   const [capturedImage, setCapturedImage] = useState(null);
