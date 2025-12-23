@@ -110,7 +110,7 @@ export default function UserPortal() {
     setCapturedImage(imageData);
     setShowAIProcessor(true);
     setShowCameraModal(false);
-    
+
     setTimeout(() => {
       aiSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
@@ -137,7 +137,7 @@ export default function UserPortal() {
       reader.onload = (event) => {
         setCapturedImage(event.target.result);
         setShowAIProcessor(true);
-        
+
         setTimeout(() => {
           aiSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }, 100);
@@ -501,245 +501,342 @@ export default function UserPortal() {
       {/* Vista de Detecciones CON IA */}
       {activeView === "detecciones" && (
         <div className="portal-view">
-          {/* SECCIÓN DE ANÁLISIS CON IA */}
+          {/* SECCIÓN DE ANÁLISIS CON IA - DISEÑO RENOVADO */}
           <div style={{
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            borderRadius: '16px',
-            padding: '24px',
-            marginBottom: '24px',
-            boxShadow: '0 8px 32px rgba(102, 126, 234, 0.3)',
-            color: 'white'
+            maxWidth: '1200px',
+            margin: '0 auto 40px',
+            padding: '0 20px'
           }}>
-            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-              <div style={{ 
-                display: 'inline-flex', 
-                alignItems: 'center', 
+            {/* HEADER */}
+            <div style={{
+              textAlign: 'center',
+              marginBottom: '48px'
+            }}>
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
                 gap: '8px',
-                padding: '8px 16px',
-                background: 'rgba(255, 255, 255, 0.2)',
-                borderRadius: '20px',
+                padding: '8px 20px',
+                background: 'rgba(16, 185, 129, 0.1)',
+                border: '2px solid #10b981',
+                borderRadius: '24px',
                 fontSize: '14px',
                 fontWeight: '600',
-                marginBottom: '16px',
-                backdropFilter: 'blur(10px)'
+                color: '#10b981',
+                marginBottom: '24px'
               }}>
-                <Brain size={16} />
-                <span>Análisis con IA en Tiempo Real</span>
+                <Scan size={16} />
+                <span>Probá Nuestra IA</span>
               </div>
-              
-              <h3 style={{ 
-                fontSize: '24px', 
-                fontWeight: '700',
-                margin: '0 0 8px 0'
+
+              <h2 style={{
+                fontSize: '40px',
+                fontWeight: '800',
+                color: '#1f2937',
+                margin: '0 0 16px 0',
+                letterSpacing: '-1px',
+                lineHeight: '1.2'
               }}>
-                Clasificador Inteligente de Residuos
-              </h3>
-              
-              <p style={{ 
-                fontSize: '14px',
+                Clasificación Inteligente de Residuos
+              </h2>
+
+              <p style={{
+                fontSize: '16px',
+                color: '#6b7280',
                 margin: 0,
-                opacity: 0.9
+                lineHeight: '1.6',
+                maxWidth: '700px',
+                marginLeft: 'auto',
+                marginRight: 'auto'
               }}>
-                Sube una foto o usa la cámara para clasificar residuos con Roboflow
+                Captura o sube una foto para que nuestra IA analice y clasifique automáticamente
+                el tipo de residuo en tiempo real usando YOLO + RoboFlow.
               </p>
             </div>
 
-            {/* PREVIEW DE IMAGEN */}
+            {/* CONTENEDOR PRINCIPAL */}
             <div style={{
-              background: '#000',
-              borderRadius: '12px',
-              overflow: 'hidden',
-              marginBottom: '20px',
-              minHeight: '280px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              position: 'relative',
-              border: '2px solid rgba(255, 255, 255, 0.1)'
+              background: 'white',
+              borderRadius: '20px',
+              padding: '32px',
+              boxShadow: '0 4px 24px rgba(0, 0, 0, 0.06)',
+              border: '1px solid #e5e7eb'
             }}>
-              {capturedImage ? (
-                <>
-                  <img 
-                    src={capturedImage} 
-                    alt="Preview" 
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'contain',
-                      maxHeight: '400px'
-                    }}
-                  />
-                  <div style={{
-                    position: 'absolute',
-                    top: '16px',
-                    right: '16px',
-                    background: 'rgba(16, 185, 129, 0.9)',
-                    color: 'white',
-                    padding: '8px 16px',
-                    borderRadius: '20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    backdropFilter: 'blur(10px)'
-                  }}>
-                    <CheckCircle2 size={16} />
-                    <span>Imagen lista</span>
-                  </div>
-                </>
-              ) : (
+              {/* ÁREA DE PREVIEW */}
+              <div style={{
+                background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                borderRadius: '16px',
+                minHeight: '400px',
+                marginBottom: '24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+                overflow: 'hidden',
+                border: '3px solid #334155'
+              }}>
+                {/* Patrón de fondo decorativo */}
                 <div style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '16px',
-                  padding: '40px 20px',
-                  color: '#9ca3af'
-                }}>
-                  <Camera size={64} style={{ opacity: 0.6 }} />
-                  <p style={{ margin: 0, fontSize: '16px', fontWeight: '500', color: 'white' }}>
-                    Captura o sube una imagen para analizar
-                  </p>
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundImage: `
+              linear-gradient(45deg, transparent 0%, transparent 49%, rgba(16, 185, 129, 0.02) 50%, transparent 51%, transparent 100%),
+              linear-gradient(-45deg, transparent 0%, transparent 49%, rgba(16, 185, 129, 0.02) 50%, transparent 51%, transparent 100%)
+            `,
+                  backgroundSize: '40px 40px',
+                  opacity: 0.5,
+                  pointerEvents: 'none'
+                }}></div>
+
+                {capturedImage ? (
+                  <>
+                    <img
+                      src={capturedImage}
+                      alt="Preview"
+                      style={{
+                        maxWidth: '100%',
+                        maxHeight: '400px',
+                        objectFit: 'contain',
+                        position: 'relative',
+                        zIndex: 1,
+                        borderRadius: '8px'
+                      }}
+                    />
+                    {/* Badge de estado */}
+                    <div style={{
+                      position: 'absolute',
+                      top: '20px',
+                      left: '20px',
+                      background: 'rgba(16, 185, 129, 0.95)',
+                      color: 'white',
+                      padding: '10px 18px',
+                      borderRadius: '24px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      backdropFilter: 'blur(10px)',
+                      border: '2px solid rgba(255, 255, 255, 0.2)',
+                      zIndex: 2,
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
+                    }}>
+                      <CheckCircle2 size={16} />
+                      <span>Imagen lista</span>
+                    </div>
+                  </>
+                ) : (
                   <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontSize: '13px',
-                    color: 'rgba(255, 255, 255, 0.7)'
+                    textAlign: 'center',
+                    padding: '60px 40px',
+                    position: 'relative',
+                    zIndex: 1
                   }}>
-                    <Scan size={16} />
-                    <span>La IA detectará y clasificará automáticamente</span>
+                    <div style={{
+                      width: '100px',
+                      height: '100px',
+                      margin: '0 auto 28px',
+                      background: 'rgba(16, 185, 129, 0.1)',
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '3px dashed rgba(16, 185, 129, 0.3)',
+                      animation: 'pulse-border 2s ease-in-out infinite'
+                    }}>
+                      <Camera size={48} color="rgba(16, 185, 129, 0.7)" />
+                    </div>
+
+                    <h3 style={{
+                      fontSize: '22px',
+                      fontWeight: '700',
+                      color: 'white',
+                      margin: '0 0 12px 0',
+                      letterSpacing: '-0.5px'
+                    }}>
+                      Captura una foto o sube una imagen para analizar con IA
+                    </h3>
+
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '10px 20px',
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      borderRadius: '24px',
+                      fontSize: '14px',
+                      color: 'rgba(16, 185, 129, 0.9)',
+                      border: '1px solid rgba(16, 185, 129, 0.25)',
+                      marginTop: '12px',
+                      backdropFilter: 'blur(5px)'
+                    }}>
+                      <Scan size={18} />
+                      <span style={{ fontWeight: '500' }}>La IA detectará y clasificará automáticamente</span>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
 
-            {/* BOTONES DE CONTROL */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: capturedImage ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)',
-              gap: '12px',
-              marginBottom: '16px'
-            }}>
-              <button 
-                onClick={handleOpenCamera}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  padding: '14px 20px',
-                  background: 'rgba(255, 255, 255, 0.95)',
-                  color: '#667eea',
-                  border: 'none',
-                  borderRadius: '10px',
-                  fontSize: '15px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  transition: 'all 0.3s ease',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
-                }}
-                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
-                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-              >
-                <Camera size={20} />
-                <span>Abrir Cámara</span>
-              </button>
-
-              <button 
-                onClick={handleOpenFileSelector}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  padding: '14px 20px',
-                  background: 'rgba(255, 255, 255, 0.95)',
-                  color: '#10b981',
-                  border: 'none',
-                  borderRadius: '10px',
-                  fontSize: '15px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  transition: 'all 0.3s ease',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
-                }}
-                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
-                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-              >
-                <Upload size={20} />
-                <span>Subir Imagen</span>
-              </button>
-
-              {capturedImage && (
-                <button 
-                  onClick={handleResetImage}
+              {/* BOTONES DE CONTROL */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: capturedImage ? '1fr 1fr auto' : '1fr 1fr',
+                gap: '14px',
+                marginBottom: '20px'
+              }}>
+                <button
+                  onClick={handleOpenCamera}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '8px',
-                    padding: '14px 20px',
-                    background: '#ef4444',
+                    gap: '10px',
+                    padding: '18px 28px',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                     color: 'white',
                     border: 'none',
-                    borderRadius: '10px',
+                    borderRadius: '12px',
                     fontSize: '15px',
-                    fontWeight: '600',
+                    fontWeight: '700',
                     cursor: 'pointer',
-                    transition: 'all 0.3s ease'
+                    transition: 'all 0.3s ease',
+                    boxShadow: '0 4px 16px rgba(16, 185, 129, 0.3)',
+                    letterSpacing: '0.3px'
                   }}
-                  onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
-                  onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(16, 185, 129, 0.4)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 16px rgba(16, 185, 129, 0.3)';
+                  }}
                 >
-                  <X size={20} />
-                  <span>Eliminar</span>
+                  <Camera size={20} />
+                  <span>Abrir Cámara</span>
                 </button>
-              )}
-            </div>
 
-            {/* Input oculto */}
-            <input 
-              ref={fileInputRef}
-              type="file" 
-              accept="image/*" 
-              onChange={handleImageUpload}
-              style={{ display: 'none' }}
-            />
+                <button
+                  onClick={handleOpenFileSelector}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px',
+                    padding: '18px 28px',
+                    background: 'white',
+                    color: '#10b981',
+                    border: '2px solid #10b981',
+                    borderRadius: '12px',
+                    fontSize: '15px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    letterSpacing: '0.3px'
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = '#f0fdf4';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.15)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'white';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  <Upload size={20} />
+                  <span>Subir Imagen</span>
+                </button>
 
-            {/* INFO */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              padding: '12px 16px',
-              background: 'rgba(255, 255, 255, 0.15)',
-              borderRadius: '8px',
-              fontSize: '13px',
-              backdropFilter: 'blur(10px)'
-            }}>
-              <Scan size={16} />
-              <span>
-                {capturedImage 
-                  ? "Imagen cargada. Desplázate hacia abajo para iniciar el análisis." 
-                  : "Utiliza la cámara o sube una imagen para clasificar residuos."
-                }
-              </span>
+                {capturedImage && (
+                  <button
+                    onClick={handleResetImage}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      padding: '18px 24px',
+                      background: '#fee2e2',
+                      color: '#dc2626',
+                      border: '2px solid #fecaca',
+                      borderRadius: '12px',
+                      fontSize: '15px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                      letterSpacing: '0.3px'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = '#fecaca';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.15)';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = '#fee2e2';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  >
+                    <X size={20} />
+                    <span>Eliminar</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Input oculto */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                style={{ display: 'none' }}
+              />
+
+              {/* INFO */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '14px',
+                padding: '16px 20px',
+                background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+                border: '2px solid #86efac',
+                borderRadius: '12px',
+                fontSize: '14px',
+                color: '#166534',
+                boxShadow: '0 2px 8px rgba(16, 185, 129, 0.1)'
+              }}>
+                <Scan size={20} style={{ flexShrink: 0, color: '#10b981' }} />
+                <span style={{ fontWeight: '500', lineHeight: '1.5' }}>
+                  {capturedImage
+                    ? "✅ Imagen cargada. Desplázate hacia abajo para iniciar el análisis con Roboflow."
+                    : "💡 Utiliza cámara en vivo o sube una imagen existente para clasificar residuos automáticamente."
+                  }
+                </span>
+              </div>
             </div>
           </div>
 
           {/* PROCESADOR IA */}
           {showAIProcessor && capturedImage && (
             <div ref={aiSectionRef} style={{
-              background: 'white',
-              borderRadius: '16px',
-              padding: '28px',
-              marginBottom: '24px',
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-              border: '2px solid #e2e8f0'
+              maxWidth: '1200px',
+              margin: '0 auto 40px',
+              padding: '0 20px'
             }}>
-              <AIProcessor capturedImage={capturedImage} />
+              <div style={{
+                background: 'white',
+                borderRadius: '20px',
+                padding: '32px',
+                boxShadow: '0 4px 24px rgba(0, 0, 0, 0.08)',
+                border: '2px solid #e5e7eb'
+              }}>
+                <AIProcessor capturedImage={capturedImage} />
+              </div>
             </div>
           )}
 
@@ -837,9 +934,25 @@ export default function UserPortal() {
               </div>
             </div>
           </div>
+
+          {/* CSS para animación */}
+          <style>{`
+      @keyframes pulse-border {
+        0%, 100% {
+          border-color: rgba(16, 185, 129, 0.3);
+          transform: scale(1);
+        }
+        50% {
+          border-color: rgba(16, 185, 129, 0.6);
+          transform: scale(1.05);
+        }
+      }
+    `}</style>
         </div>
       )}
 
+
+      
       {/* Info Card */}
       <div className="portal-info-card">
         <div className="info-icon-wrapper">

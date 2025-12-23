@@ -1,26 +1,12 @@
+// src/components/CameraCapture.jsx
 import { useState, useRef, useEffect } from "react";
-import { X, Camera, RotateCcw, Loader2 } from "lucide-react";
+import { X, Camera, RotateCcw, Loader2, CheckCircle2 } from "lucide-react";
 import "./CameraCapture.css";
+import { 
+  detectWasteWithAI,
+  isValidImageFormat, 
 
-const API_URL = 'http://127.0.0.1:8001';
-
-const CATEGORY_INFO = {
-  organico: {
-    label: "ORGÁNICO", icon: "🌱", color: "#10b981", bgColor: "#d1fae5",
-    description: "Residuo orgánico - Depositar en contenedor verde",
-    examples: "Restos de comida, cáscaras, residuos vegetales"
-  },
-  reciclable: {
-    label: "RECICLABLE", icon: "♻️", color: "#3b82f6", bgColor: "#dbeafe",
-    description: "Material reciclable - Depositar en contenedor azul",
-    examples: "Plástico, papel, cartón, vidrio, metal"
-  },
-  inorganico: {
-    label: "INORGÁNICO", icon: "🗑️", color: "#6b7280", bgColor: "#f3f4f6",
-    description: "Residuo no reciclable - Depositar en contenedor gris",
-    examples: "Residuos no reciclables, desechos diversos"
-  }
-};
+} from "../../api/deteccionApi";
 
 export default function CameraCapture({ onCapture, onClose }) {
   const [mode, setMode] = useState("preview");
@@ -35,7 +21,6 @@ export default function CameraCapture({ onCapture, onClose }) {
   const [cameraActive, setCameraActive] = useState(false);
   const [shouldStartCamera, setShouldStartCamera] = useState(false);
 
-  // Limpiar stream al desmontar
   useEffect(() => {
     return () => {
       if (videoRef.current && videoRef.current.srcObject) {
@@ -44,7 +29,6 @@ export default function CameraCapture({ onCapture, onClose }) {
     };
   }, []);
 
-  // Iniciar cámara cuando el video esté montado
   useEffect(() => {
     if (shouldStartCamera && mode === "camera" && videoRef.current) {
       const initCamera = async () => {
@@ -71,13 +55,19 @@ export default function CameraCapture({ onCapture, onClose }) {
   }, [shouldStartCamera, mode]);
 
   const checkCameras = async () => {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(d => d.kind === 'videoinput');
-    if (videoDevices.length === 0) {
-      setError("No se detecta ninguna cámara conectada.");
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(d => d.kind === 'videoinput');
+      if (videoDevices.length === 0) {
+        setError("No se detecta ninguna cámara conectada.");
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error("Error verificando cámaras:", error);
+      setError("Error al verificar dispositivos de cámara.");
       return false;
     }
-    return true;
   };
 
   const startCamera = async () => {
@@ -129,90 +119,74 @@ export default function CameraCapture({ onCapture, onClose }) {
 
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        setError("La imagen es demasiado grande (máximo 10MB)");
-        return;
-      }
-      
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setCapturedImage(event.target.result);
-        setMode("image");
-        setError(null);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    if (!isValidImageFormat(file)) {
+      setError("Formato de archivo no válido. Usa JPG, PNG o WebP.");
+      return;
     }
+    
+    if (file.size > 10 * 1024 * 1024) {
+      setError("La imagen es demasiado grande (máximo 10MB)");
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setCapturedImage(event.target.result);
+      setMode("image");
+      setError(null);
+    };
+    reader.onerror = () => {
+      setError("Error al leer el archivo de imagen");
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSendImage = async () => {
-    if (!capturedImage) return;
+    if (!capturedImage) {
+      setError("No hay imagen para analizar");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setResult(null);
 
     try {
-      console.log("📤 Enviando imagen a Roboflow...");
+      console.log("Enviando imagen para análisis...");
       
-      const res = await fetch(capturedImage);
-      const blob = await res.blob();
-      const file = new File([blob], "captura.jpg", { type: "image/jpeg" });
+      const analysisResult = await detectWasteWithAI(capturedImage);
 
-      const formData = new FormData();
-      formData.append("imagen", file);
-
-      const response = await fetch(`${API_URL}/api/ia/detect/`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`HTTP ${response.status}: ${text}`);
-      }
-
-      const data = await response.json();
-      console.log("📥 Respuesta del servidor:", data);
-
-      // ⚠️ Caso 1: No se detectó nada
-      if (!data.success && data.no_detection) {
-        console.warn("⚠️ No se detectaron objetos en la imagen");
-        setError(data.message || "No se detectaron objetos en la imagen");
+      // Caso: No se detectó nada
+      if (!analysisResult.success && analysisResult.noDetection) {
+        console.warn("No se detectaron objetos en la imagen");
+        setError(analysisResult.message || "No se detectaron objetos en la imagen");
         setResult({
           no_detection: true,
-          message: data.message,
-          suggestions: data.suggestions || []
+          message: analysisResult.message,
+          suggestions: analysisResult.suggestions || []
         });
-        setLoading(false);
         return;
       }
 
-      // ❌ Caso 2: Error general
-      if (!data.success) {
-        throw new Error(data.error || "Error desconocido del backend");
+      // Caso: Error
+      if (!analysisResult.success) {
+        throw new Error(analysisResult.error || "Error desconocido al analizar la imagen");
       }
 
-      // ✅ Caso 3: Detección exitosa
-      const categoria = data.clasificacion_principal.categoria.toLowerCase();
-      const categoryInfo = data.category_info || CATEGORY_INFO[categoria] || CATEGORY_INFO.inorganico;
-
+      // Caso: Éxito
+      console.log("Análisis completado exitosamente:", analysisResult.result);
       setResult({
         success: true,
-        categoria: categoria,
-        categoriaLabel: categoryInfo.label,
-        confianza: data.clasificacion_principal.confianza,
-        icon: categoryInfo.icon,
-        color: categoryInfo.color,
-        bgColor: categoryInfo.bgColor,
-        descripcion: categoryInfo.description,
-        ejemplos: categoryInfo.examples,
-        topPredicciones: data.top_predicciones || [],
+        ...analysisResult.result,
         capturedImage: capturedImage
       });
 
     } catch (err) {
-      console.error("❌ Error analizando imagen:", err);
+      console.error("Error analizando imagen:", err);
       setError(`Error al procesar la imagen: ${err.message}`);
+      setResult(null);
     } finally {
       setLoading(false);
     }
@@ -232,12 +206,19 @@ export default function CameraCapture({ onCapture, onClose }) {
     onClose?.();
   };
 
+  const handleUseResult = () => {
+    if (result?.success && result.capturedImage) {
+      onCapture?.(result.capturedImage);
+      handleClose();
+    }
+  };
+
   return (
     <div className="camera-capture-modal-overlay">
       <div className="camera-capture-modal">
         <div className="camera-capture-header">
           <h3 className="camera-capture-title">
-            {result?.success ? "Resultados del Análisis Roboflow" : "Capturar Imagen para Análisis IA"}
+            {result?.success ? "Análisis Completado" : "Sistema de Clasificación IA"}
           </h3>
           <button
             className="camera-capture-close-btn"
@@ -251,7 +232,7 @@ export default function CameraCapture({ onCapture, onClose }) {
         <div className="camera-capture-body">
           {error && !result?.no_detection && (
             <div className="error-message">
-              <span className="error-icon">⚠️</span>
+              <span className="error-icon">!</span>
               <span>{error}</span>
             </div>
           )}
@@ -260,7 +241,10 @@ export default function CameraCapture({ onCapture, onClose }) {
           {result?.success && (
             <div className="result-container">
               <div className="result-image-section">
-                <h4>📸 Imagen Analizada</h4>
+                <h4>
+                  <CheckCircle2 size={20} />
+                  Imagen Analizada
+                </h4>
                 <img 
                   src={result.capturedImage}
                   alt="Resultado análisis"
@@ -276,17 +260,17 @@ export default function CameraCapture({ onCapture, onClose }) {
                   <span className="category-icon">{result.icon}</span>
                   <span className="category-name">{result.categoriaLabel}</span>
                   <span className="category-confidence">
-                    {Math.round(result.confianza)}% confianza
+                    {Math.round(result.confianza)}% Confianza
                   </span>
                 </div>
                 <p className="category-description">{result.descripcion}</p>
-                <p style={{ color: '#6b7280', fontSize: '14px', marginTop: '8px' }}>
-                  <strong>💡 Ejemplos:</strong> {result.ejemplos}
+                <p style={{ color: '#6b7280', fontSize: '14px', marginTop: '8px', fontWeight: '500' }}>
+                  <strong>Ejemplos:</strong> {result.ejemplos}
                 </p>
 
                 {result.topPredicciones && result.topPredicciones.length > 0 && (
-                  <div className="detected-items" style={{ marginTop: '20px' }}>
-                    <h5>📊 Top Predicciones:</h5>
+                  <div className="detected-items">
+                    <h5>Predicciones Principales</h5>
                     <div className="items-grid">
                       {result.topPredicciones.slice(0, 3).map((pred, index) => {
                         const catInfo = CATEGORY_INFO[pred.categoria] || CATEGORY_INFO.inorganico;
@@ -319,6 +303,13 @@ export default function CameraCapture({ onCapture, onClose }) {
               <div className="result-actions">
                 <button
                   className="btn-action btn-action-primary"
+                  onClick={handleUseResult}
+                >
+                  <CheckCircle2 size={18} />
+                  Usar este Resultado
+                </button>
+                <button
+                  className="btn-action btn-action-secondary"
                   onClick={resetCamera}
                 >
                   <Camera size={18} />
@@ -338,7 +329,10 @@ export default function CameraCapture({ onCapture, onClose }) {
           {result?.no_detection && (
             <div className="result-container">
               <div className="result-image-section">
-                <h4>📸 Imagen Analizada</h4>
+                <h4>
+                  <CheckCircle2 size={20} />
+                  Imagen Analizada
+                </h4>
                 <img 
                   src={capturedImage}
                   alt="Sin detección"
@@ -347,27 +341,55 @@ export default function CameraCapture({ onCapture, onClose }) {
               </div>
 
               <div style={{ 
-                padding: '20px', borderRadius: '12px', marginBottom: '20px',
+                padding: '24px', borderRadius: '12px', marginBottom: '24px',
                 backgroundColor: '#fef3c7', border: '2px solid #fbbf24'
               }}>
-                <div style={{ display: 'flex', alignItems: 'start', gap: '12px', marginBottom: '12px' }}>
-                  <span style={{ fontSize: '24px' }}>⚠️</span>
+                <div style={{ display: 'flex', alignItems: 'start', gap: '16px', marginBottom: '16px' }}>
+                  <span style={{ 
+                    fontSize: '32px', 
+                    fontWeight: '700',
+                    color: '#f59e0b',
+                    lineHeight: '1'
+                  }}>!</span>
                   <div style={{ flex: 1 }}>
-                    <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: '600', color: '#92400e' }}>
+                    <h4 style={{ 
+                      margin: '0 0 12px 0', 
+                      fontSize: '17px', 
+                      fontWeight: '700', 
+                      color: '#92400e',
+                      letterSpacing: '0.3px'
+                    }}>
                       No se detectaron objetos
                     </h4>
-                    <p style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#6b7280' }}>
+                    <p style={{ 
+                      margin: '0 0 16px 0', 
+                      fontSize: '14px', 
+                      color: '#6b7280',
+                      lineHeight: '1.6'
+                    }}>
                       {result.message}
                     </p>
                     
                     {result.suggestions && result.suggestions.length > 0 && (
                       <div>
-                        <p style={{ margin: '0 0 8px 0', fontSize: '13px', fontWeight: '600', color: '#374151' }}>
-                          💡 Sugerencias:
+                        <p style={{ 
+                          margin: '0 0 10px 0', 
+                          fontSize: '13px', 
+                          fontWeight: '700', 
+                          color: '#374151',
+                          letterSpacing: '0.3px'
+                        }}>
+                          Sugerencias:
                         </p>
-                        <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#6b7280' }}>
+                        <ul style={{ 
+                          margin: 0, 
+                          paddingLeft: '20px', 
+                          fontSize: '13px', 
+                          color: '#6b7280',
+                          lineHeight: '1.8'
+                        }}>
                           {result.suggestions.map((suggestion, idx) => (
-                            <li key={idx} style={{ marginBottom: '4px' }}>{suggestion}</li>
+                            <li key={idx} style={{ marginBottom: '6px' }}>{suggestion}</li>
                           ))}
                         </ul>
                       </div>
@@ -398,10 +420,10 @@ export default function CameraCapture({ onCapture, onClose }) {
           {!result && mode === "preview" && (
             <div className="camera-preview-options">
               <div className="preview-placeholder">
-                <div className="placeholder-icon">🤖</div>
-                <p className="placeholder-title">Analizador de Residuos IA</p>
+                <div className="placeholder-icon">IA</div>
+                <p className="placeholder-title">Sistema de Clasificación</p>
                 <p className="placeholder-text">
-                  Detecta automáticamente residuos con Roboflow Workflow
+                  Clasificación automática de residuos mediante inteligencia artificial
                 </p>
               </div>
 
@@ -420,7 +442,7 @@ export default function CameraCapture({ onCapture, onClose }) {
                   onClick={() => fileInputRef.current?.click()}
                   disabled={loading}
                 >
-                  <span style={{ fontSize: "24px" }}>📁</span>
+                  <span style={{ fontSize: "24px" }}>↑</span>
                   <span>Subir Imagen</span>
                 </button>
 
@@ -454,7 +476,7 @@ export default function CameraCapture({ onCapture, onClose }) {
                     <button
                       className="btn-capture"
                       onClick={capturePhoto}
-                      title="Tomar foto"
+                      title="Capturar"
                       disabled={loading}
                     >
                       <span className="capture-dot"></span>
@@ -485,9 +507,9 @@ export default function CameraCapture({ onCapture, onClose }) {
               </div>
 
               <div className="image-review-info">
-                <p className="info-text">✓ Imagen lista para análisis</p>
+                <p className="info-text">Imagen lista para análisis</p>
                 <p className="info-subtext">
-                  Se analizará con Roboflow Workflow para clasificar el residuo
+                  El sistema analizará la imagen mediante inteligencia artificial
                 </p>
               </div>
 
@@ -500,12 +522,12 @@ export default function CameraCapture({ onCapture, onClose }) {
                   {loading ? (
                     <>
                       <Loader2 className="animate-spin" size={18} />
-                      Analizando con Roboflow...
+                      Analizando...
                     </>
                   ) : (
                     <>
-                      <span style={{ fontSize: "18px" }}>🤖</span>
-                      Analizar con Roboflow
+                      <CheckCircle2 size={18} />
+                      Analizar Imagen
                     </>
                   )}
                 </button>
@@ -516,14 +538,14 @@ export default function CameraCapture({ onCapture, onClose }) {
                   disabled={loading}
                 >
                   <RotateCcw size={18} />
-                  Tomar otra foto
+                  Capturar otra
                 </button>
               </div>
 
               {loading && (
                 <div className="loading-overlay">
                   <div className="loading-spinner"></div>
-                  <p>Procesando imagen con Roboflow...</p>
+                  <p>Procesando imagen con IA...</p>
                 </div>
               )}
             </div>

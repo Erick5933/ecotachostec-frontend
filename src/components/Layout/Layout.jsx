@@ -60,6 +60,7 @@ export default function Layout() {
       label: "Detecciones IA",
       description: "Análisis inteligente"
     }
+    
   ];
 
   return (
