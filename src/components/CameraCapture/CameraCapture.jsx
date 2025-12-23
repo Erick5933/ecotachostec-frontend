@@ -24,11 +24,7 @@ const CATEGORY_INFO = {
     icon: "♻️",
     color: "#facc15",
   },
-  peligroso: {
-    label: "Peligroso",
-    icon: "☠️",
-    color: "#ef4444",
-  },
+
 };
 export default function CameraCapture({ onCapture, onClose }) {
   const [mode, setMode] = useState("preview");
