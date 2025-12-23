@@ -29,8 +29,16 @@ export default function AIProcessor({ capturedImage }) {
 
   const checkServiceStatus = async () => {
     const result = await checkAIHealth();
-    setServiceStatus(result.data);
-    console.log("Estado del servicio:", result.data);
+    if (result.success) {
+      setServiceStatus(result.data);
+      console.log("Estado del servicio:", result.data);
+    } else {
+      console.error("Error al verificar estado del servicio:", result.error);
+      setServiceStatus({ 
+        roboflow_available: false, 
+        message: "No se pudo verificar el servicio" 
+      });
+    }
   };
 
   const handleStartProcessing = async () => {
@@ -48,6 +56,16 @@ export default function AIProcessor({ capturedImage }) {
     // Verificar tamaño (opcional)
     const imageSize = getImageSize(capturedImage);
     console.log(`Tamaño de imagen: ${imageSize} MB`);
+
+    if (parseFloat(imageSize) > 10) {
+      setErrorInfo({
+        type: "error",
+        message: "La imagen es demasiado grande",
+        suggestions: [`Tamaño actual: ${imageSize} MB`, "El tamaño máximo permitido es 10 MB"]
+      });
+      setProcessingStatus("error");
+      return;
+    }
 
     setProcessingStatus("processing");
     setErrorInfo(null);

@@ -71,11 +71,12 @@
   font-weight: 500;
 }
 
-/* CÁMARA EN VIVO */
+/* CÁMARA EN VIVO - TAMAÑO FIJO */
 .camera-live-section {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  align-items: center; /* ✅ Centrar contenedor */
 }
 
 .camera-feed {
@@ -83,12 +84,15 @@
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  max-width: 600px; /* ✅ Ancho máximo fijo */
+  width: 100%; /* ✅ Responsivo pero limitado */
 }
 
 .camera-placeholder {
   position: relative;
   width: 100%;
-  height: 400px;
+  height: 400px; /* ✅ Altura fija */
+  max-height: 400px; /* ✅ No exceder altura */
   background: #000;
   display: flex;
   align-items: center;
@@ -141,11 +145,13 @@
   border-top: none;
 }
 
+/* ✅ IMAGEN CON TAMAÑO FIJO Y CENTRADA */
 .camera-image {
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  padding: 20px;
+  max-height: 400px; /* ✅ Altura máxima fija */
+  object-fit: contain; /* ✅ Mantener aspecto sin distorsión */
+  object-position: center; /* ✅ Centrar imagen */
   background: #000;
 }
 
@@ -220,6 +226,8 @@
   flex-direction: column;
   gap: 12px;
   align-items: center;
+  width: 100%;
+  max-width: 600px; /* ✅ Mismo ancho que la imagen */
 }
 
 .btn-process {
@@ -237,7 +245,8 @@
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 4px 15px rgba(66, 133, 244, 0.3);
-  min-width: 240px;
+  width: 100%; /* ✅ Ancho completo del contenedor */
+  max-width: 300px; /* ✅ Pero limitado */
 }
 
 .btn-process:hover:not(.disabled) {
@@ -261,6 +270,8 @@
   gap: 8px;
   font-size: 12px;
   color: #666;
+  text-align: center;
+  max-width: 600px; /* ✅ Mismo ancho que imagen */
 }
 
 /* SECCIÓN DE RESULTADOS */
@@ -271,6 +282,10 @@
   border-radius: 12px;
   border: 2px solid #e0f2fe;
   animation: slideUp 0.5s ease;
+  max-width: 600px; /* ✅ Mismo ancho que imagen */
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .results-header {
@@ -486,8 +501,16 @@
     padding: 20px 16px;
   }
   
+  .camera-feed {
+    max-width: 100%; /* ✅ En móvil usar ancho completo */
+  }
+  
   .camera-placeholder {
-    height: 300px;
+    height: 350px; /* ✅ Ajustar altura en tablets */
+  }
+  
+  .camera-image {
+    max-height: 350px;
   }
   
   .results-actions {
@@ -504,8 +527,13 @@
   }
   
   .btn-process {
-    min-width: 100%;
-    width: 100%;
+    max-width: 100%;
+  }
+  
+  .processor-controls,
+  .control-info,
+  .results-section {
+    max-width: 100%;
   }
 }
 
@@ -519,7 +547,11 @@
   }
   
   .camera-placeholder {
-    height: 250px;
+    height: 300px; /* ✅ Altura fija en móviles */
+  }
+  
+  .camera-image {
+    max-height: 300px;
   }
   
   .result-value {

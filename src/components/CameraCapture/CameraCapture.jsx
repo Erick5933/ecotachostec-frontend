@@ -4,28 +4,10 @@ import { X, Camera, RotateCcw, Loader2, CheckCircle2 } from "lucide-react";
 import "./CameraCapture.css";
 import { 
   detectWasteWithAI,
-  isValidImageFormat, 
-
+  isValidImageFormat,
+  CATEGORY_INFO, // ✅ Importar desde la API
 } from "../../api/deteccionApi";
 
-const CATEGORY_INFO = {
-  organico: {
-    label: "Orgánico",
-    icon: "🍃",
-    color: "#22c55e",
-  },
-  inorganico: {
-    label: "Inorgánico",
-    icon: "🧴",
-    color: "#3b82f6",
-  },
-  reciclable: {
-    label: "Reciclable",
-    icon: "♻️",
-    color: "#facc15",
-  },
-
-};
 export default function CameraCapture({ onCapture, onClose }) {
   const [mode, setMode] = useState("preview");
   const [capturedImage, setCapturedImage] = useState(null);
@@ -291,7 +273,8 @@ export default function CameraCapture({ onCapture, onClose }) {
                     <h5>Predicciones Principales</h5>
                     <div className="items-grid">
                       {result.topPredicciones.slice(0, 3).map((pred, index) => {
-                        const catInfo = CATEGORY_INFO[pred.categoria] || CATEGORY_INFO.inorganico;
+                        // ✅ FIX: Convertir a lowercase para coincidir con las keys de CATEGORY_INFO
+                        const catInfo = CATEGORY_INFO[pred.categoria.toLowerCase()] || CATEGORY_INFO.inorganico;
                         return (
                           <div key={index} className="item-card">
                             <div className="item-header">

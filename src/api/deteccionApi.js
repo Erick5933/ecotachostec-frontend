@@ -1,22 +1,12 @@
 // src/api/deteccionApi.js
-import axios from 'axios';
-
-// ==================== CONFIGURACIÓN BASE ====================
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001';
-
-// ==================== AXIOS INSTANCE ====================
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 30000,
-});
+import axiosInstance from './axiosConfig'; // ✅ Reutilizar instancia configurada
 
 // ==================== ENDPOINTS ====================
 export const DETECCION_ENDPOINTS = {
-  AI_DETECT: '/api/ia/detect/',
-  AI_HEALTH: '/api/ia/health/',
-  AI_INFO: '/api/ia/info/',
-  AI_STATUS: '/api/ia/status/',
+  AI_DETECT: '/ia/detect/',
+  AI_HEALTH: '/ia/health/',
+  AI_INFO: '/ia/info/',
+  AI_STATUS: '/ia/status/',
 };
 
 // ==================== INFORMACIÓN DE CATEGORÍAS ====================
@@ -46,14 +36,13 @@ export const CATEGORY_INFO = {
     examples: 'Residuos no reciclables, desechos diversos',
   },
 };
-//----------------------------------------------------
+
+// ==================== UTILIDADES ====================
 export const isValidImageFormat = (file) => {
   if (!file) return false;
   if (typeof file === 'string') return file.startsWith('data:image');
   return file.type?.startsWith('image/');
 };
-
-
 
 export const getImageSize = (file) => {
   if (file instanceof Blob || file instanceof File) {
@@ -68,29 +57,27 @@ export const getImageSize = (file) => {
   return 0;
 };
 
-
 // ==================== SERVICIOS ====================
-
 export const checkAIHealth = async () => {
   try {
-    const { data } = await api.get(DETECCION_ENDPOINTS.AI_HEALTH);
+    const { data } = await axiosInstance.get(DETECCION_ENDPOINTS.AI_HEALTH);
     return { success: true, data };
   } catch (error) {
     return {
       success: false,
-      error: error.message,
+      error: error.response?.data?.error || error.message,
     };
   }
 };
 
 export const getAIModelInfo = async () => {
   try {
-    const { data } = await api.get(DETECCION_ENDPOINTS.AI_INFO);
+    const { data } = await axiosInstance.get(DETECCION_ENDPOINTS.AI_INFO);
     return { success: true, data };
   } catch (error) {
     return {
       success: false,
-      error: error.message,
+      error: error.response?.data?.error || error.message,
     };
   }
 };
@@ -100,6 +87,7 @@ export const detectWasteWithAI = async (imagen) => {
   try {
     const formData = new FormData();
 
+    // Convertir imagen según formato
     if (typeof imagen === 'string' && imagen.startsWith('data:image')) {
       const blob = await fetch(imagen).then((r) => r.blob());
       formData.append('imagen', blob, 'captura.jpg');
@@ -109,13 +97,18 @@ export const detectWasteWithAI = async (imagen) => {
       throw new Error('Formato de imagen no válido');
     }
 
-    const { data } = await api.post(
+    // ✅ Usar axiosInstance con FormData
+    const { data } = await axiosInstance.post(
       DETECCION_ENDPOINTS.AI_DETECT,
-      formData
-      // ❌ NO headers aquí
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data', // Sobrescribir para FormData
+        },
+      }
     );
 
-    // ⚠️ No detección
+    // ⚠️ Caso: No detección
     if (!data.success && data.no_detection) {
       return {
         success: false,
@@ -125,10 +118,12 @@ export const detectWasteWithAI = async (imagen) => {
       };
     }
 
+    // ❌ Caso: Error del backend
     if (!data.success) {
       throw new Error(data.error || 'Error del backend');
     }
 
+    // ✅ Caso: Éxito
     const categoria = data.clasificacion_principal.categoria.toLowerCase();
     const info =
       data.category_info || CATEGORY_INFO[categoria] || CATEGORY_INFO.inorganico;
@@ -165,17 +160,13 @@ export const detectWasteWithAI = async (imagen) => {
   }
 };
 
+// ==================== EXPORTACIÓN DEFAULT ====================
 export default {
-  // servicios
   detectWasteWithAI,
   checkAIHealth,
   getAIModelInfo,
-
-  // utils
   isValidImageFormat,
-
-  // constantes
+  getImageSize,
   DETECCION_ENDPOINTS,
   CATEGORY_INFO,
 };
-
