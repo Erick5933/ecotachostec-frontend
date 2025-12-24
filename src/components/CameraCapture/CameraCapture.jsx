@@ -1,11 +1,11 @@
 // src/components/CameraCapture.jsx
 import { useState, useRef, useEffect } from "react";
-import { X, Camera, RotateCcw, Loader2, CheckCircle2 } from "lucide-react";
+import { X, Camera, RotateCcw, Loader2, CheckCircle2, Info } from "lucide-react";
 import "./CameraCapture.css";
 import { 
   detectWasteWithAI,
   isValidImageFormat,
-  CATEGORY_INFO, // ✅ Importar desde la API
+  CATEGORY_INFO,
 } from "../../api/deteccionApi";
 
 export default function CameraCapture({ onCapture, onClose }) {
@@ -143,55 +143,82 @@ export default function CameraCapture({ onCapture, onClose }) {
     reader.readAsDataURL(file);
   };
 
-  const handleSendImage = async () => {
-    if (!capturedImage) {
-      setError("No hay imagen para analizar");
+const handleSendImage = async () => {
+  if (!capturedImage) {
+    setError("No hay imagen para analizar");
+    return;
+  }
+
+  setLoading(true);
+  setError(null);
+  setResult(null);
+
+  try {
+    console.log("Enviando imagen para análisis...");
+    
+    //  CORREGIR: detectWasteWithAI devuelve la respuesta completa
+    const response = await detectWasteWithAI(capturedImage);
+
+    console.log(" Respuesta de API:", response); // Ver estructura
+
+    // CASO 1: Error de conexión o servidor
+    if (!response.success && response.error) {
+      console.error(" Error del servidor:", response.error);
+      setError(response.error || "Error al analizar la imagen");
+      setResult(null);
       return;
     }
 
-    setLoading(true);
-    setError(null);
-    setResult(null);
+    // CASO 2: No se detectaron objetos
+    if (!response.success && response.no_detection) {
+      console.warn(" No se detectaron objetos");
+      setError(response.message || "No se detectaron objetos en la imagen");
+      setResult({
+        no_detection: true,
+        message: response.message,
+        suggestions: response.suggestions || []
+      });
+      return;
+    }
 
-    try {
-      console.log("Enviando imagen para análisis...");
-      
-      const analysisResult = await detectWasteWithAI(capturedImage);
+    // CASO 3: Éxito - Formatear resultados
+    if (response.success && response.clasificacion_principal) {
+      const { categoria, confianza } = response.clasificacion_principal;
+      const categoryInfo = response.category_info || CATEGORY_INFO[categoria] || CATEGORY_INFO.inorganico;
 
-      // Caso: No se detectó nada
-      if (!analysisResult.success && analysisResult.noDetection) {
-        console.warn("No se detectaron objetos en la imagen");
-        setError(analysisResult.message || "No se detectaron objetos en la imagen");
-        setResult({
-          no_detection: true,
-          message: analysisResult.message,
-          suggestions: analysisResult.suggestions || []
-        });
-        return;
-      }
+      console.log("✅ Análisis completado:", categoria, confianza);
 
-      // Caso: Error
-      if (!analysisResult.success) {
-        throw new Error(analysisResult.error || "Error desconocido al analizar la imagen");
-      }
-
-      // Caso: Éxito
-      console.log("Análisis completado exitosamente:", analysisResult.result);
       setResult({
         success: true,
-        ...analysisResult.result,
-        capturedImage: capturedImage
+        categoria: categoria,
+        categoriaLabel: categoryInfo.label,
+        confianza: confianza,
+        color: categoryInfo.color,
+        bgColor: categoryInfo.bgColor,
+        icon: categoryInfo.icon,
+        descripcion: categoryInfo.description || categoryInfo.descripcion,
+        ejemplos: categoryInfo.examples || categoryInfo.ejemplos,
+        topPredicciones: response.top_predicciones || [],
+        capturedImage: capturedImage  // ← Agregar la imagen original
       });
 
-    } catch (err) {
-      console.error("Error analizando imagen:", err);
-      setError(`Error al procesar la imagen: ${err.message}`);
+      // No llamar a onCapture automáticamente
+      setError(null);
+    } else {
+      // CASO 4: Respuesta inesperada
+      console.error(" Respuesta inesperada:", response);
+      setError("Respuesta inesperada del servidor");
       setResult(null);
-    } finally {
-      setLoading(false);
     }
-  };
 
+  } catch (err) {
+    console.error(" Error crítico analizando imagen:", err);
+    setError(`Error al procesar la imagen: ${err.message}`);
+    setResult(null);
+  } finally {
+    setLoading(false);
+  }
+};
   const resetCamera = () => {
     stopCamera();
     setCapturedImage(null);
@@ -206,12 +233,21 @@ export default function CameraCapture({ onCapture, onClose }) {
     onClose?.();
   };
 
-  const handleUseResult = () => {
-    if (result?.success && result.capturedImage) {
-      onCapture?.(result.capturedImage);
-      handleClose();
-    }
-  };
+const handleUseResult = () => {
+  if (result?.success && result.capturedImage) {
+    // Crear objeto con datos necesarios para el padre
+    const detectionData = {
+      image: result.capturedImage,
+      categoria: result.categoria,
+      categoriaLabel: result.categoriaLabel,
+      confianza: result.confianza,
+      timestamp: new Date().toISOString()
+    };
+    
+    onCapture?.(detectionData);
+    handleClose();
+  }
+};
 
   return (
     <div className="camera-capture-modal-overlay">
@@ -236,6 +272,8 @@ export default function CameraCapture({ onCapture, onClose }) {
               <span>{error}</span>
             </div>
           )}
+          
+  
 
           {/* RESULTADOS DE DETECCIÓN EXITOSA */}
           {result?.success && (
@@ -245,53 +283,197 @@ export default function CameraCapture({ onCapture, onClose }) {
                   <CheckCircle2 size={20} />
                   Imagen Analizada
                 </h4>
-                <img 
-                  src={result.capturedImage}
-                  alt="Resultado análisis"
-                  className="result-image"
-                />
+                <div style={{
+                  position: 'relative',
+                  width: '100%',
+                  maxWidth: '600px',
+                  margin: '0 auto',
+                  backgroundColor: '#000',
+                  borderRadius: '12px',
+                  overflow: 'hidden',
+                  border: '3px solid #10b981'
+                }}>
+                  <div style={{
+                    position: 'relative',
+                    width: '100%',
+                    paddingBottom: '75%',
+                    overflow: 'hidden'
+                  }}>
+                    <img 
+                      src={result.capturedImage}
+                      alt="Resultado análisis"
+                      style={{ 
+                        position: 'absolute',
+                        top: '0',
+                        left: '0',
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                        objectPosition: 'center'
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="main-classification">
                 <div 
                   className="category-badge"
-                  style={{ backgroundColor: result.color }}
+                  style={{ 
+                    backgroundColor: result.bgColor,
+                    border: `2px solid ${result.color}`,
+                    padding: '20px',
+                    borderRadius: '12px',
+                    marginBottom: '16px'
+                  }}
                 >
-                  <span className="category-icon">{result.icon}</span>
-                  <span className="category-name">{result.categoriaLabel}</span>
-                  <span className="category-confidence">
-                    {Math.round(result.confianza)}% Confianza
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '50%',
+                      backgroundColor: result.color,
+                      color: '#fff',
+                      fontWeight: '700',
+                      fontSize: '20px'
+                    }}>
+                      {result.icon}
+                    </span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ 
+                        fontSize: '24px', 
+                        fontWeight: '800', 
+                        color: result.color,
+                        marginBottom: '4px'
+                      }}>
+                        {result.categoriaLabel}
+                      </div>
+                      <div style={{ 
+                        fontSize: '14px', 
+                        fontWeight: '700', 
+                        color: result.color,
+                        backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                        padding: '2px 10px', 
+                        borderRadius: '6px',
+                        display: 'inline-block'
+                      }}>
+                        {Math.round(result.confianza)}% Confianza
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ 
+                    width: '100%', 
+                    height: '10px', 
+                    backgroundColor: 'rgba(0, 0, 0, 0.1)', 
+                    borderRadius: '5px', 
+                    overflow: 'hidden', 
+                    marginBottom: '12px',
+                    border: '1px solid rgba(0, 0, 0, 0.1)'
+                  }}>
+                    <div style={{ 
+                      width: `${result.confianza}%`, 
+                      height: '100%',
+                      backgroundColor: result.color, 
+                      transition: 'width 0.5s ease'
+                    }}></div>
+                  </div>
                 </div>
-                <p className="category-description">{result.descripcion}</p>
-                <p style={{ color: '#6b7280', fontSize: '14px', marginTop: '8px', fontWeight: '500' }}>
+
+                <p className="category-description" style={{ marginBottom: '12px' }}>
+                  {result.descripcion}
+                </p>
+                <p style={{ 
+                  color: '#6b7280', 
+                  fontSize: '14px', 
+                  marginTop: '8px', 
+                  fontWeight: '500',
+                  lineHeight: '1.6'
+                }}>
                   <strong>Ejemplos:</strong> {result.ejemplos}
                 </p>
 
                 {result.topPredicciones && result.topPredicciones.length > 0 && (
-                  <div className="detected-items">
-                    <h5>Predicciones Principales</h5>
+                  <div className="detected-items" style={{ marginTop: '24px' }}>
+                    <h5 style={{ 
+                      fontSize: '16px', 
+                      fontWeight: '700', 
+                      marginBottom: '16px',
+                      color: '#111827'
+                    }}>
+                      Predicciones Principales
+                    </h5>
                     <div className="items-grid">
                       {result.topPredicciones.slice(0, 3).map((pred, index) => {
-                        // ✅ FIX: Convertir a lowercase para coincidir con las keys de CATEGORY_INFO
                         const catInfo = CATEGORY_INFO[pred.categoria.toLowerCase()] || CATEGORY_INFO.inorganico;
                         return (
-                          <div key={index} className="item-card">
-                            <div className="item-header">
-                              <span className="item-icon">{catInfo.icon}</span>
-                              <span className="item-name">{catInfo.label}</span>
+                          <div 
+                            key={index} 
+                            style={{
+                              padding: '12px',
+                              backgroundColor: catInfo.bgColor,
+                              borderRadius: '8px',
+                              border: `2px solid ${catInfo.color}`,
+                              marginBottom: '8px'
+                            }}
+                          >
+                            <div style={{ 
+                              display: 'flex', 
+                              justifyContent: 'space-between', 
+                              alignItems: 'center',
+                              marginBottom: '8px'
+                            }}>
+                              <span style={{ 
+                                fontSize: '14px', 
+                                fontWeight: '600', 
+                                color: '#374151',
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '8px'
+                              }}>
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '24px',
+                                  height: '24px',
+                                  borderRadius: '50%',
+                                  backgroundColor: catInfo.color,
+                                  color: '#fff',
+                                  fontWeight: '700',
+                                  fontSize: '12px'
+                                }}>
+                                  {catInfo.icon}
+                                </span>
+                                {catInfo.label}
+                              </span>
+                              <span style={{ 
+                                fontSize: '14px', 
+                                fontWeight: '700', 
+                                color: catInfo.color,
+                                backgroundColor: 'rgba(255, 255, 255, 0.6)',
+                                padding: '2px 10px', 
+                                borderRadius: '6px'
+                              }}>
+                                {Math.round(pred.confianza)}%
+                              </span>
                             </div>
-                            <div className="item-confidence">
-                              <div className="confidence-bar">
-                                <div 
-                                  className="confidence-fill"
-                                  style={{ 
-                                    width: `${pred.confianza}%`,
-                                    backgroundColor: catInfo.color
-                                  }}
-                                ></div>
-                              </div>
-                              <span className="confidence-value">{Math.round(pred.confianza)}%</span>
+                            <div style={{
+                              width: '100%',
+                              height: '6px',
+                              backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                              borderRadius: '3px',
+                              overflow: 'hidden'
+                            }}>
+                              <div style={{
+                                width: `${pred.confianza}%`,
+                                height: '100%',
+                                backgroundColor: catInfo.color,
+                                transition: 'width 0.5s ease'
+                              }}></div>
                             </div>
                           </div>
                         );
@@ -331,34 +513,62 @@ export default function CameraCapture({ onCapture, onClose }) {
             <div className="result-container">
               <div className="result-image-section">
                 <h4>
-                  <CheckCircle2 size={20} />
+                  <Info size={20} />
                   Imagen Analizada
                 </h4>
-                <img 
-                  src={capturedImage}
-                  alt="Sin detección"
-                  className="result-image"
-                />
+                <div style={{
+                  position: 'relative',
+                  width: '100%',
+                  maxWidth: '600px',
+                  margin: '0 auto',
+                  backgroundColor: '#000',
+                  borderRadius: '12px',
+                  overflow: 'hidden',
+                  border: '3px solid #fbbf24'
+                }}>
+                  <div style={{
+                    position: 'relative',
+                    width: '100%',
+                    paddingBottom: '75%',
+                    overflow: 'hidden'
+                  }}>
+                    <img 
+                      src={capturedImage}
+                      alt="Sin detección"
+                      style={{ 
+                        position: 'absolute',
+                        top: '0',
+                        left: '0',
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                        objectPosition: 'center'
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
 
               <div style={{ 
-                padding: '24px', borderRadius: '12px', marginBottom: '24px',
-                backgroundColor: '#fef3c7', border: '2px solid #fbbf24'
+                padding: '24px', 
+                borderRadius: '12px', 
+                marginBottom: '24px',
+                backgroundColor: '#fef3c7', 
+                border: '2px solid #fbbf24'
               }}>
-                <div style={{ display: 'flex', alignItems: 'start', gap: '16px', marginBottom: '16px' }}>
-                  <span style={{ 
-                    fontSize: '32px', 
-                    fontWeight: '700',
-                    color: '#f59e0b',
-                    lineHeight: '1'
-                  }}>!</span>
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'start', 
+                  gap: '16px', 
+                  marginBottom: '16px' 
+                }}>
+                  <Info size={24} color="#f59e0b" style={{ flexShrink: 0 }} />
                   <div style={{ flex: 1 }}>
                     <h4 style={{ 
                       margin: '0 0 12px 0', 
                       fontSize: '17px', 
                       fontWeight: '700', 
-                      color: '#92400e',
-                      letterSpacing: '0.3px'
+                      color: '#92400e'
                     }}>
                       No se detectaron objetos
                     </h4>
@@ -377,8 +587,7 @@ export default function CameraCapture({ onCapture, onClose }) {
                           margin: '0 0 10px 0', 
                           fontSize: '13px', 
                           fontWeight: '700', 
-                          color: '#374151',
-                          letterSpacing: '0.3px'
+                          color: '#374151'
                         }}>
                           Sugerencias:
                         </p>
@@ -500,11 +709,37 @@ export default function CameraCapture({ onCapture, onClose }) {
           {!result && mode === "image" && capturedImage && (
             <div className="image-review-container">
               <div className="image-preview-wrapper">
-                <img
-                  src={capturedImage}
-                  alt="Captura"
-                  className="captured-image-preview"
-                />
+                <div style={{
+                  position: 'relative',
+                  width: '100%',
+                  maxWidth: '600px',
+                  margin: '0 auto',
+                  backgroundColor: '#000',
+                  borderRadius: '12px',
+                  overflow: 'hidden',
+                  border: '3px solid #10b981'
+                }}>
+                  <div style={{
+                    position: 'relative',
+                    width: '100%',
+                    paddingBottom: '75%',
+                    overflow: 'hidden'
+                  }}>
+                    <img
+                      src={capturedImage}
+                      alt="Captura"
+                      style={{ 
+                        position: 'absolute',
+                        top: '0',
+                        left: '0',
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                        objectPosition: 'center'
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="image-review-info">
@@ -553,6 +788,7 @@ export default function CameraCapture({ onCapture, onClose }) {
           )}
         </div>
       </div>
+      
     </div>
   );
 }

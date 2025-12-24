@@ -1,172 +1,139 @@
 // src/api/deteccionApi.js
-import axiosInstance from './axiosConfig'; // ✅ Reutilizar instancia configurada
+import axiosInstance from "./axiosConfig.js";
+
+// ==================== CRUD DETECCIONES ====================
+export const getDetecciones = () => axiosInstance.get("/detecciones/");
+export const getDeteccionById = (id) => axiosInstance.get(`/detecciones/${id}/`);
+export const createDeteccion = (data) => axiosInstance.post("/detecciones/", data);
+export const updateDeteccion = (id, data) => axiosInstance.put(`/detecciones/${id}/`, data);
+export const deleteDeteccion = (id) => axiosInstance.delete(`/detecciones/${id}/`);
 
 // ==================== ENDPOINTS ====================
 export const DETECCION_ENDPOINTS = {
-  AI_DETECT: '/ia/detect/',
-  AI_HEALTH: '/ia/health/',
-  AI_INFO: '/ia/info/',
-  AI_STATUS: '/ia/status/',
-};
-
-// ==================== INFORMACIÓN DE CATEGORÍAS ====================
-export const CATEGORY_INFO = {
-  organico: {
-    label: 'ORGÁNICO',
-    icon: '🌱',
-    color: '#10b981',
-    bgColor: '#d1fae5',
-    description: 'Residuo orgánico - Depositar en contenedor verde',
-    examples: 'Restos de comida, cáscaras, residuos vegetales',
-  },
-  reciclable: {
-    label: 'RECICLABLE',
-    icon: '♻️',
-    color: '#3b82f6',
-    bgColor: '#dbeafe',
-    description: 'Material reciclable - Depositar en contenedor azul',
-    examples: 'Plástico, papel, cartón, vidrio, metal',
-  },
-  inorganico: {
-    label: 'INORGÁNICO',
-    icon: '🗑️',
-    color: '#6b7280',
-    bgColor: '#f3f4f6',
-    description: 'Residuo no reciclable - Depositar en contenedor gris',
-    examples: 'Residuos no reciclables, desechos diversos',
-  },
-};
+  DETECCIONES: "/detecciones/",
+  AI_DETECT: "/ia/detect/",  // Cambiado de /ai/detect/ a /ia/detect/
+  AI_HEALTH: "/ia/health/",  // Cambiado de /ai/health/ a /ia/health/
+  AI_INFO: "/ia/info/",      // Cambiado de /ai/info/ a /ia/info/
+  AI_STATUS: "/ia/status/",  // Cambiado de /ai/status/ a /ia/status/
+  };
 
 // ==================== UTILIDADES ====================
 export const isValidImageFormat = (file) => {
   if (!file) return false;
-  if (typeof file === 'string') return file.startsWith('data:image');
-  return file.type?.startsWith('image/');
+
+  // base64
+  if (typeof file === "string") {
+    return file.startsWith("data:image/");
+  }
+
+  // File o Blob
+  return file.type?.startsWith("image/");
 };
 
-export const getImageSize = (file) => {
-  if (file instanceof Blob || file instanceof File) {
-    return (file.size / 1024 / 1024).toFixed(2);
-  }
-  if (typeof file === 'string') {
-    const base64Length = file.length - (file.indexOf(',') + 1);
-    const padding = file.endsWith('==') ? 2 : file.endsWith('=') ? 1 : 0;
-    const size = (base64Length * 0.75) - padding;
-    return (size / 1024 / 1024).toFixed(2);
-  }
-  return 0;
+// ==================== CATEGORÍAS ====================
+export const CATEGORY_INFO = {
+  organico: {
+    label: "ORGÁNICO",
+    icon: "O",
+    color: "#10b981",
+    bgColor: "#d1fae5",
+    description: "Residuo orgánico",
+    examples: "Restos de comida, cáscaras",
+  },
+  reciclable: {
+    label: "RECICLABLE",
+    icon: "R",
+    color: "#3b82f6",
+    bgColor: "#dbeafe",
+    description: "Residuo reciclable",
+    examples: "Plástico, cartón, vidrio",
+  },
+  inorganico: {
+    label: "INORGÁNICO",
+    icon: "I",
+    color: "#6b7280",
+    bgColor: "#f3f4f6",
+    description: "Residuo no reciclable",
+    examples: "Desechos varios",
+  },
 };
 
-// ==================== SERVICIOS ====================
-export const checkAIHealth = async () => {
-  try {
-    const { data } = await axiosInstance.get(DETECCION_ENDPOINTS.AI_HEALTH);
-    return { success: true, data };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.response?.data?.error || error.message,
-    };
-  }
-};
-
-export const getAIModelInfo = async () => {
-  try {
-    const { data } = await axiosInstance.get(DETECCION_ENDPOINTS.AI_INFO);
-    return { success: true, data };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.response?.data?.error || error.message,
-    };
-  }
-};
-
-// ==================== DETECCIÓN IA ====================
+// ==================== IA - DETECCIÓN CON ROBOFLOW ====================
 export const detectWasteWithAI = async (imagen) => {
   try {
+    console.log("🚀 [detectWasteWithAI] Iniciando detección...");
+
     const formData = new FormData();
 
-    // Convertir imagen según formato
-    if (typeof imagen === 'string' && imagen.startsWith('data:image')) {
+    // Convertir imagen base64 a blob si es necesario
+    if (typeof imagen === "string") {
+      console.log("📸 [detectWasteWithAI] Convirtiendo base64 a blob...");
       const blob = await fetch(imagen).then((r) => r.blob());
-      formData.append('imagen', blob, 'captura.jpg');
-    } else if (imagen instanceof Blob || imagen instanceof File) {
-      formData.append('imagen', imagen, imagen.name || 'captura.jpg');
+      formData.append("imagen", blob, "captura.jpg");
     } else {
-      throw new Error('Formato de imagen no válido');
+      formData.append("imagen", imagen);
     }
 
-    // ✅ Usar axiosInstance con FormData
+    console.log(`📡 [detectWasteWithAI] POST ${DETECCION_ENDPOINTS.AI_DETECT}`);
+
     const { data } = await axiosInstance.post(
       DETECCION_ENDPOINTS.AI_DETECT,
       formData,
       {
-        headers: {
-          'Content-Type': 'multipart/form-data', // Sobrescribir para FormData
-        },
+        headers: { "Content-Type": "multipart/form-data" },
       }
     );
 
-    // ⚠️ Caso: No detección
-    if (!data.success && data.no_detection) {
-      return {
-        success: false,
-        noDetection: true,
-        message: data.message,
-        suggestions: data.suggestions || [],
-      };
-    }
+    console.log("✅ [detectWasteWithAI] Respuesta exitosa:", data);
 
-    // ❌ Caso: Error del backend
-    if (!data.success) {
-      throw new Error(data.error || 'Error del backend');
-    }
-
-    // ✅ Caso: Éxito
-    const categoria = data.clasificacion_principal.categoria.toLowerCase();
-    const info =
-      data.category_info || CATEGORY_INFO[categoria] || CATEGORY_INFO.inorganico;
-
-    return {
-      success: true,
-      result: {
-        categoria,
-        categoriaLabel: info.label,
-        confianza: data.clasificacion_principal.confianza,
-        icon: info.icon,
-        color: info.color,
-        bgColor: info.bgColor,
-        descripcion: info.description,
-        ejemplos: info.examples,
-        tipo: data.tipo,
-        topPredicciones: data.top_predicciones || [],
-      },
-    };
+    return { success: true, ...data };
   } catch (error) {
+    console.error("❌ [detectWasteWithAI] Error:", error);
+    
+    // Log detallado del error
     if (error.response) {
-      return {
-        success: false,
-        error: `Servidor (${error.response.status}): ${
-          error.response.data?.error || 'Error interno'
-        }`,
-      };
+      console.error("📡 Status:", error.response.status);
+      console.error("📡 Data:", error.response.data);
+      console.error("📡 Headers:", error.response.headers);
+    } else if (error.request) {
+      console.error("📡 No response received:", error.request);
+    } else {
+      console.error("📡 Error message:", error.message);
     }
 
     return {
       success: false,
-      error: error.message,
+      error:
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        error.message ||
+        "Error en detección IA",
     };
   }
 };
 
-// ==================== EXPORTACIÓN DEFAULT ====================
+// ==================== IA HEALTH ====================
+export const checkAIHealth = async () => {
+  try {
+    console.log("🏥 [checkAIHealth] Verificando estado del servicio...");
+    const { data } = await axiosInstance.get(DETECCION_ENDPOINTS.AI_HEALTH);
+    console.log("✅ [checkAIHealth] Servicio operacional:", data);
+    return { success: true, data };
+  } catch (error) {
+    console.error("❌ [checkAIHealth] Error:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+// ==================== EXPORT DEFAULT ====================
 export default {
   detectWasteWithAI,
-  checkAIHealth,
-  getAIModelInfo,
   isValidImageFormat,
-  getImageSize,
-  DETECCION_ENDPOINTS,
   CATEGORY_INFO,
+  getDetecciones,
+  getDeteccionById,
+  createDeteccion,
+  updateDeteccion,
+  deleteDeteccion,
+  checkAIHealth,
 };

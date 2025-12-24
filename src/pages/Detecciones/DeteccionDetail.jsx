@@ -7,19 +7,46 @@ import "../adminPages.css";
 
 const DeteccionDetail = () => {
   const { id } = useParams();
+    console.log("🔍 ID recibido desde params:", id);
   const [deteccion, setDeteccion] = useState(null);
   const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-  const loadDeteccion = async () => {
-    try {
-      const res = await api.get(`/detecciones/${id}/`);
-      setDeteccion(res.data);
-    } catch (e) {
-      console.error("Error cargando detección", e);
-    } finally {
-      setLoading(false);
+const loadDeteccion = async () => {
+  try {
+    setLoading(true);
+    
+    console.log("📡 Solicitando detección con ID:", id);
+    console.log("🔗 URL completa:", `/detecciones/${id}/`);
+    
+    // Asegúrate de que id no sea "ia" ni esté vacío
+    if (!id || id === "ia") {
+      console.error("❌ ID inválido:", id);
+      setError("ID de detección no válido");
+      setDeteccion(null);
+      return;
     }
-  };
+    
+    const res = await api.get(`/detecciones/${id}/`);
+    console.log("✅ Detección recibida:", res.data);
+    setDeteccion(res.data);
+    setError(null);
+    
+  } catch (error) {
+    console.error("❌ Error cargando detección:", error);
+    console.error("📊 Detalles del error:", {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data,
+      url: error.config?.url
+    });
+    
+    setError(`Error al cargar la detección: ${error.message}`);
+    setDeteccion(null);
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     loadDeteccion();
@@ -39,7 +66,7 @@ const DeteccionDetail = () => {
       <div className="empty-state">
         <Brain className="empty-state-icon" size={64} />
         <h3>Detección no encontrada</h3>
-        <p>No se pudo cargar la información de la detección</p>
+        <p>No se pudo cargar la información de la detección con ID: {id}</p>
         <Link to="/detecciones" className="btn btn-primary">
           <ArrowLeft className="icon-md" />
           Volver a la lista
@@ -191,11 +218,25 @@ const DeteccionDetail = () => {
               <ImageIcon className="icon-md" style={{ display: "inline", marginRight: "8px" }} />
               Imagen de la Detección
             </h4>
-            <img
-              src={deteccion.imagen}
-              alt={`Detección ${deteccion.nombre}`}
-              className="detail-image"
-            />
+            <div style={{
+              maxWidth: '600px',
+              margin: '16px auto',
+              border: '2px solid #e5e7eb',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              backgroundColor: '#000'
+            }}>
+              <img
+                src={deteccion.imagen}
+                alt={`Detección ${deteccion.nombre}`}
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  display: 'block',
+                  objectFit: 'contain'
+                }}
+              />
+            </div>
           </div>
         )}
       </div>
