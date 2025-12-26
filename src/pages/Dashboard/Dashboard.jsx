@@ -275,7 +275,7 @@ export default function Dashboard() {
 
         <div className="card-body">
           <div className="system-status-grid">
-            {systemStatus.map((item, index) => (
+              {systemStatus.map((item, index) => (
               <div key={index} className="status-item">
                 <div className={`status-indicator ${item.status}`}></div>
 

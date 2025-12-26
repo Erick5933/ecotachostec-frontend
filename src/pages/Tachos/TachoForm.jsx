@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { Trash2, Save, X, MapPin, Layers, FileText, Tag } from "lucide-react";
+import {
+  Trash2, Save, X, MapPin, Layers, FileText, Tag,
+  Battery, Activity, Calendar, AlertCircle
+} from "lucide-react";
 import api from "../../api/axiosConfig";
 import "../adminPages.css";
 
@@ -29,6 +32,8 @@ const TachoForm = () => {
     ubicacion_lat: "",
     ubicacion_lon: "",
     canton: "",
+    estado: "activo",
+    nivel_llenado: 0,
   });
 
   const [cantones, setCantones] = useState([]);
@@ -111,7 +116,14 @@ const TachoForm = () => {
   const loadTacho = async () => {
     try {
       const res = await api.get(`/tachos/${id}/`);
-      setTacho(res.data);
+      const tachoData = res.data;
+
+      // Asegurar que nivel_llenado tenga valor por defecto
+      setTacho({
+        ...tachoData,
+        nivel_llenado: tachoData.nivel_llenado || 0,
+        estado: tachoData.estado || "activo"
+      });
     } catch (e) {
       setError("No se pudo cargar el tacho");
     }
@@ -131,7 +143,12 @@ const TachoForm = () => {
 
   // ------------------ FORM --------------------------
   const handleChange = (e) => {
-    setTacho({ ...tacho, [e.target.name]: e.target.value });
+    const { name, value, type } = e.target;
+
+    setTacho(prev => ({
+      ...prev,
+      [name]: type === 'number' ? parseFloat(value) : value
+    }));
     setError("");
   };
 
@@ -140,6 +157,13 @@ const TachoForm = () => {
       setError("Código y nombre son obligatorios");
       return false;
     }
+
+    // Validar nivel de llenado entre 0 y 100
+    if (tacho.nivel_llenado < 0 || tacho.nivel_llenado > 100) {
+      setError("El nivel de llenado debe estar entre 0 y 100");
+      return false;
+    }
+
     return true;
   };
 
@@ -156,6 +180,7 @@ const TachoForm = () => {
         ubicacion_lat: tacho.ubicacion_lat ? parseFloat(tacho.ubicacion_lat) : null,
         ubicacion_lon: tacho.ubicacion_lon ? parseFloat(tacho.ubicacion_lon) : null,
         canton: tacho.canton || null,
+        nivel_llenado: parseInt(tacho.nivel_llenado) || 0,
       };
 
       if (id) await api.put(`/tachos/${id}/`, dataToSend);
@@ -177,6 +202,13 @@ const TachoForm = () => {
 
   const initialPosition = lat && lon ? [lat, lon] : defaultCuenca;
 
+  // ------------------ OPCIONES DE ESTADO --------------------
+  const estados = [
+    { value: "activo", label: "Activo", color: "#34c759" },
+    { value: "mantenimiento", label: "Mantenimiento", color: "#ff9500" },
+    { value: "fuera_servicio", label: "Fuera de servicio", color: "#ff3b30" }
+  ];
+
   return (
     <div className="admin-page">
       <div className="page-header">
@@ -192,7 +224,7 @@ const TachoForm = () => {
         <form onSubmit={handleSubmit}>
           {error && (
             <div className="alert alert-error">
-              <X className="icon-md" />
+              <AlertCircle className="icon-md" />
               {error}
             </div>
           )}
@@ -228,6 +260,68 @@ const TachoForm = () => {
               />
             </div>
 
+            {/* Estado */}
+            <div className="form-group">
+              <label className="form-label">
+                <Activity className="icon-sm" /> Estado
+              </label>
+              <select
+                name="estado"
+                value={tacho.estado}
+                onChange={handleChange}
+                className="form-input"
+              >
+                {estados.map(estado => (
+                  <option key={estado.value} value={estado.value}>
+                    {estado.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Nivel de Llenado */}
+            <div className="form-group">
+              <label className="form-label">
+                <Battery className="icon-sm" /> Nivel de Llenado (%)
+              </label>
+              <div className="input-with-slider">
+                <input
+                  type="range"
+                  name="nivel_llenado"
+                  min="0"
+                  max="100"
+                  value={tacho.nivel_llenado || 0}
+                  onChange={handleChange}
+                  className="form-range"
+                />
+                <div className="range-value">
+                  <input
+                    type="number"
+                    name="nivel_llenado"
+                    min="0"
+                    max="100"
+                    value={tacho.nivel_llenado || 0}
+                    onChange={handleChange}
+                    className="form-input small"
+                    style={{ width: "80px" }}
+                  />
+                  <span style={{ marginLeft: "8px" }}>%</span>
+                </div>
+              </div>
+
+              {/* Indicador visual */}
+              <div className="fill-level-indicator">
+                <div
+                  className="fill-level-bar"
+                  style={{ width: `${tacho.nivel_llenado || 0}%` }}
+                >
+                  <span className="fill-level-text">
+                    {tacho.nivel_llenado || 0}%
+                  </span>
+                </div>
+              </div>
+            </div>
+
             {/* Descripción */}
             <div className="form-group form-grid-full">
               <label className="form-label">
@@ -235,23 +329,36 @@ const TachoForm = () => {
               </label>
               <textarea
                 name="descripcion"
-                value={tacho.descripcion}
+                value={tacho.descripcion || ""}
                 onChange={handleChange}
                 className="form-textarea"
                 placeholder="Descripción o referencia del lugar..."
               />
             </div>
 
-
             {/* Lat/Lon */}
             <div className="form-group">
-              <label className="form-label">Latitud</label>
-              <input type="text" value={tacho.ubicacion_lat} readOnly className="form-input" />
+              <label className="form-label">
+                <MapPin className="icon-sm" /> Latitud
+              </label>
+              <input
+                type="text"
+                value={tacho.ubicacion_lat}
+                readOnly
+                className="form-input"
+              />
             </div>
 
             <div className="form-group">
-              <label className="form-label">Longitud</label>
-              <input type="text" value={tacho.ubicacion_lon} readOnly className="form-input" />
+              <label className="form-label">
+                <MapPin className="icon-sm" /> Longitud
+              </label>
+              <input
+                type="text"
+                value={tacho.ubicacion_lon}
+                readOnly
+                className="form-input"
+              />
             </div>
           </div>
 
@@ -288,8 +395,8 @@ const TachoForm = () => {
             <Link to="/tachos" className="btn btn-secondary">
               <X className="icon-md" /> Cancelar
             </Link>
-            <button type="submit" className="btn btn-primary">
-              <Save className="icon-md" /> Guardar
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              <Save className="icon-md" /> {loading ? "Guardando..." : "Guardar"}
             </button>
           </div>
         </form>

@@ -1,7 +1,9 @@
-// src/pages/Tachos/TachoList.jsx
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Trash2, Plus, Search, Edit, Eye, MapPin, Layers } from "lucide-react";
+import {
+  Trash2, Plus, Search, Edit, Eye, MapPin, Layers,
+  Battery, Activity, AlertCircle
+} from "lucide-react";
 import api from "../../api/axiosConfig";
 import "../adminPages.css";
 
@@ -36,10 +38,46 @@ const TachoList = () => {
     loadTachos();
   }, []);
 
+  // Función para obtener la clase CSS según el estado
+  const getEstadoClass = (estado) => {
+    switch (estado) {
+      case 'activo':
+        return 'status-active';
+      case 'mantenimiento':
+        return 'status-warning';
+      case 'fuera_servicio':
+        return 'status-inactive';
+      default:
+        return 'status-active';
+    }
+  };
+
+  // Función para obtener el texto del estado
+  const getEstadoText = (estado) => {
+    switch (estado) {
+      case 'activo':
+        return 'Activo';
+      case 'mantenimiento':
+        return 'Mantenimiento';
+      case 'fuera_servicio':
+        return 'Fuera Servicio';
+      default:
+        return estado;
+    }
+  };
+
+  // Función para obtener el color del nivel de llenado
+  const getNivelColor = (nivel) => {
+    if (nivel >= 80) return '#ff3b30';
+    if (nivel >= 50) return '#ff9500';
+    return '#34c759';
+  };
+
   const filteredTachos = tachos.filter((tacho) =>
     tacho.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     tacho.codigo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tacho.descripcion?.toLowerCase().includes(searchTerm.toLowerCase())
+    tacho.descripcion?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    tacho.estado?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (loading) {
@@ -79,10 +117,53 @@ const TachoList = () => {
           <input
             type="text"
             className="search-input"
-            placeholder="Buscar por nombre, código o descripción..."
+            placeholder="Buscar por nombre, código, descripción o estado..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+        </div>
+      </div>
+
+      {/* Stats Summary */}
+      <div className="stats-grid" style={{ marginBottom: "24px" }}>
+        <div className="stat-card">
+          <div className="stat-content">
+            <h3>{tachos.length}</h3>
+            <p>Total Tachos</p>
+          </div>
+          <div className="stat-icon">
+            <Trash2 className="icon-lg" />
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-content">
+            <h3>{tachos.filter(t => t.estado === 'activo').length}</h3>
+            <p>Activos</p>
+          </div>
+          <div className="stat-icon" style={{ backgroundColor: '#e6f4ea' }}>
+            <Activity className="icon-lg" style={{ color: '#34c759' }} />
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-content">
+            <h3>{tachos.filter(t => t.estado === 'mantenimiento').length}</h3>
+            <p>En Mantenimiento</p>
+          </div>
+          <div className="stat-icon" style={{ backgroundColor: '#fff4e6' }}>
+            <AlertCircle className="icon-lg" style={{ color: '#ff9500' }} />
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-content">
+            <h3>{tachos.filter(t => t.nivel_llenado >= 80).length}</h3>
+            <p>Con Alta Carga</p>
+          </div>
+          <div className="stat-icon" style={{ backgroundColor: '#ffe6e6' }}>
+            <Battery className="icon-lg" style={{ color: '#ff3b30' }} />
+          </div>
         </div>
       </div>
 
@@ -105,9 +186,10 @@ const TachoList = () => {
                 <th>ID</th>
                 <th>Código</th>
                 <th>Nombre</th>
-                <th>Ubicación</th>
-                <th>Descripción</th>
                 <th>Estado</th>
+                <th>Nivel</th>
+                <th>Ubicación</th>
+                <th>Última Detección</th>
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -123,6 +205,27 @@ const TachoList = () => {
                   </td>
                   <td className="table-primary">{t.nombre}</td>
                   <td>
+                    <span className={`status-badge ${getEstadoClass(t.estado)}`}>
+                      <span className="status-indicator"></span>
+                      {getEstadoText(t.estado)}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="nivel-container-small">
+                      <div className="nivel-bar-small">
+                        <div
+                          className="nivel-fill-small"
+                          style={{
+                            width: `${t.nivel_llenado || 0}%`,
+                            backgroundColor: getNivelColor(t.nivel_llenado || 0)
+                          }}
+                        >
+                          <span className="nivel-text-small">{t.nivel_llenado || 0}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       <MapPin className="icon-sm" style={{ color: "var(--color-primary)" }} />
                       <span className="table-coords">
@@ -130,14 +233,17 @@ const TachoList = () => {
                       </span>
                     </div>
                   </td>
-                  <td className="table-secondary">
-                    {t.descripcion || "Sin descripción"}
-                  </td>
                   <td>
-                    <span className="status-badge status-active">
-                      <span className="status-indicator"></span>
-                      Activo
-                    </span>
+                    {t.ultima_deteccion ? (
+                      new Date(t.ultima_deteccion).toLocaleDateString('es-EC', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })
+                    ) : (
+                      'Nunca'
+                    )}
                   </td>
                   <td>
                     <div className="action-buttons">

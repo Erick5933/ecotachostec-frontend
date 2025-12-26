@@ -585,3 +585,238 @@
   border-radius: 12px;
   margin-top: 10px;
 }
+
+
+/* Nivel de llenado */
+.nivel-container {
+  width: 100%;
+}
+
+.nivel-bar {
+  height: 24px;
+  background: #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+}
+
+.nivel-fill {
+  height: 100%;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: width 0.3s ease;
+}
+
+.nivel-text {
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Para la tabla */
+.nivel-container-small {
+  width: 100%;
+}
+
+.nivel-bar-small {
+  height: 20px;
+  background: #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+}
+
+.nivel-fill-small {
+  height: 100%;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: width 0.3s ease;
+}
+
+.nivel-text-small {
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* Confianza indicator */
+.confidence-indicator {
+  width: 100%;
+}
+
+.confidence-bar {
+  height: 20px;
+  background: #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+}
+
+.confidence-fill {
+  height: 100%;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: width 0.3s ease;
+}
+
+.confidence-text {
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* Badge colors */
+.badge-success {
+  background: #D1FAE5;
+  color: #065F46;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badge-info {
+  background: #DBEAFE;
+  color: #1E40AF;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badge-error {
+  background: #FEE2E2;
+  color: #991B1B;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  border: 1px solid #e5e7eb;
+}
+
+.stat-content h3 {
+  margin: 0;
+  font-size: 24px;
+  color: #111827;
+}
+
+.stat-content p {
+  margin: 4px 0 0 0;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.stat-icon {
+  width: 48px;
+  height: 48px;
+  background: #f3f4f6;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Input with slider */
+.input-with-slider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.form-range {
+  flex: 1;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #e5e7eb;
+  border-radius: 3px;
+  outline: none;
+}
+
+.form-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  background: var(--color-primary);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.form-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: var(--color-primary);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+
+.fill-level-indicator {
+  margin-top: 8px;
+}
+
+.fill-level-bar {
+  height: 8px;
+  background: var(--color-primary);
+  border-radius: 4px;
+  position: relative;
+  transition: width 0.3s ease;
+}
+
+.fill-level-text {
+  position: absolute;
+  right: -30px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-dark);
+}
+
+/* Range value */
+.range-value {
+  display: flex;
+  align-items: center;
+}
+
+.form-input.small {
+  width: 80px;
+  padding: 8px 12px;
+  font-size: 14px;
+}
+
+/* Status Badges adicionales */
+.status-badge.status-warning {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.status-badge.status-inactive {
+  background: #FEE2E2;
+  color: #991B1B;
+}
