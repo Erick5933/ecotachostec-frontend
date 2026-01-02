@@ -1,6 +1,6 @@
 // src/pages/User/UserPortal.jsx
 import { useEffect, useState, useContext, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { AuthContext } from "../../context/AuthContext";
 import api from "../../api/axiosConfig";
 import CameraCapture from "../../components/CameraCapture/CameraCapture";
@@ -10,7 +10,8 @@ import {
   Clock, CheckCircle, AlertCircle, BarChart3,
   Package, Zap, Eye, Calendar, Filter,
   ArrowRight, RefreshCw, Download, Search,
-  Target, Award, Sparkles, Radio, Camera, Upload, X, Scan, CheckCircle2
+  Target, Award, Sparkles, Radio, Camera, Upload, X, Scan, CheckCircle2,
+  Image as ImageIcon
 } from "lucide-react";
 import "./userPortal.css";
 
@@ -21,17 +22,19 @@ export default function UserPortal() {
   const [stats, setStats] = useState({
     totalTachos: 0,
     totalDetecciones: 0,
-    totalUbicaciones: 0,
+    misDetecciones: 0,
   });
   const [tachos, setTachos] = useState([]);
   const [detecciones, setDetecciones] = useState([]);
+  const [misTachos, setMisTachos] = useState([]);
+  const [misDetecciones, setMisDetecciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState("overview");
   const [searchTerm, setSearchTerm] = useState("");
   const [animatedStats, setAnimatedStats] = useState({
     totalTachos: 0,
     totalDetecciones: 0,
-    totalUbicaciones: 0,
+    misDetecciones: 0,
   });
 
   // Estados para IA
@@ -79,20 +82,31 @@ export default function UserPortal() {
 
   const loadPortalData = async () => {
     try {
-      const [tachosRes, deteccionesRes, ubicacionesRes] = await Promise.all([
+      const [tachosRes, deteccionesRes] = await Promise.all([
         api.get("/tachos/"),
         api.get("/detecciones/"),
-        api.get("/ubicacion/cantones/"),
       ]);
 
+      // Filtrar mis tachos (donde el usuario es propietario)
+      const userTachos = tachosRes.data.filter(tacho =>
+        tacho.propietario === user?.id
+      );
+
+      // Filtrar mis detecciones (donde el usuario es el creador)
+      const userDetecciones = deteccionesRes.data.filter(det =>
+        det.usuario === user?.id
+      );
+
       setStats({
-        totalTachos: tachosRes.data.length || 0,
-        totalDetecciones: deteccionesRes.data.length || 0,
-        totalUbicaciones: ubicacionesRes.data.length || 0,
+        totalTachos: userTachos.length,
+        totalDetecciones: deteccionesRes.data.length,
+        misDetecciones: userDetecciones.length,
       });
 
       setTachos(tachosRes.data);
       setDetecciones(deteccionesRes.data);
+      setMisTachos(userTachos);
+      setMisDetecciones(userDetecciones);
     } catch (error) {
       console.error("Error cargando datos del portal", error);
     } finally {
@@ -158,15 +172,138 @@ export default function UserPortal() {
     }
   };
 
-  const filteredTachos = tachos.filter(tacho =>
+  const handleNewDetection = async (detectionData) => {
+    try {
+      // Crear detección solo para el usuario actual
+      const detectionPayload = {
+        ...detectionData,
+        usuario: user.id,  // Asignar al usuario actual
+        tacho: null,       // No asignar a ningún tacho
+        ubicacion_lat: user.canton?.latitud || -0.2295,  // Usar ubicación del usuario o default
+        ubicacion_lon: user.canton?.longitud || -78.5249,
+      };
+
+      const response = await api.post("/detecciones/", detectionPayload);
+
+      // Recargar datos
+      loadPortalData();
+
+      return response.data;
+    } catch (error) {
+      console.error("Error creando detección:", error);
+      throw error;
+    }
+  };
+
+  const filteredTachos = misTachos.filter(tacho =>
     tacho.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     tacho.codigo?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const filteredDetecciones = detecciones.filter(det =>
+  const filteredDetecciones = misDetecciones.filter(det =>
     det.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     det.codigo?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Función para formatear fecha
+  const formatFechaLegible = (fechaString) => {
+    if (!fechaString) return 'Fecha no disponible';
+
+    const fecha = new Date(fechaString);
+    const ahora = new Date();
+    const diferenciaMs = ahora - fecha;
+    const diferenciaDias = Math.floor(diferenciaMs / (1000 * 60 * 60 * 24));
+
+    if (diferenciaDias === 0) {
+      const diferenciaHoras = Math.floor(diferenciaMs / (1000 * 60 * 60));
+      if (diferenciaHoras < 1) {
+        const diferenciaMinutos = Math.floor(diferenciaMs / (1000 * 60));
+        if (diferenciaMinutos < 1) return 'Hace unos momentos';
+        return `Hace ${diferenciaMinutos} min${diferenciaMinutos !== 1 ? 's' : ''}`;
+      }
+      return `Hace ${diferenciaHoras} hora${diferenciaHoras !== 1 ? 's' : ''}`;
+    }
+
+    if (diferenciaDias === 1) {
+      return `Ayer ${fecha.toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}`;
+    }
+
+    if (diferenciaDias < 7) {
+      return `${fecha.toLocaleDateString('es-EC', { weekday: 'long' })} ${fecha.toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}`;
+    }
+
+    return fecha.toLocaleDateString('es-EC', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Función para obtener ubicación
+  const getUbicacionFromCoords = (lat, lon) => {
+    if (!lat || !lon) return "Ubicación desconocida";
+
+    // Coordenadas aproximadas para provincias de Ecuador
+    const locations = [
+      { provincia: "Pichincha", ciudad: "Quito", latRange: [-0.3, 0.1], lonRange: [-78.6, -78.4] },
+      { provincia: "Guayas", ciudad: "Guayaquil", latRange: [-2.3, -2.1], lonRange: [-79.95, -79.85] },
+      { provincia: "Azuay", ciudad: "Cuenca", latRange: [-2.92, -2.88], lonRange: [-79.02, -78.98] },
+      { provincia: "Manabí", ciudad: "Manta", latRange: [-1.06, -0.98], lonRange: [-80.75, -80.65] },
+      { provincia: "El Oro", ciudad: "Machala", latRange: [-3.28, -3.24], lonRange: [-79.97, -79.93] },
+      { provincia: "Loja", ciudad: "Loja", latRange: [-4.02, -3.98], lonRange: [-79.22, -79.18] },
+      { provincia: "Tungurahua", ciudad: "Ambato", latRange: [-1.28, -1.22], lonRange: [-78.65, -78.59] },
+      { provincia: "Imbabura", ciudad: "Ibarra", latRange: [0.35, 0.39], lonRange: [-78.15, -78.11] },
+      { provincia: "Cotopaxi", ciudad: "Latacunga", latRange: [-0.95, -0.91], lonRange: [-78.62, -78.58] },
+      { provincia: "Chimborazo", ciudad: "Riobamba", latRange: [-1.68, -1.64], lonRange: [-78.67, -78.63] },
+    ];
+
+    const latNum = parseFloat(lat);
+    const lonNum = parseFloat(lon);
+
+    for (const location of locations) {
+      if (
+        latNum >= location.latRange[0] && latNum <= location.latRange[1] &&
+        lonNum >= location.lonRange[0] && lonNum <= location.lonRange[1]
+      ) {
+        return `${location.ciudad}, ${location.provincia}`;
+      }
+    }
+
+    if (latNum > 0) return "Región Norte";
+    if (latNum < -2) return "Región Sur";
+    if (lonNum < -80) return "Región Costa";
+    return "Región Sierra";
+  };
+
+  // Función para obtener clase de clasificación
+  const getClasificacionBadgeClass = (clasificacion) => {
+    switch (clasificacion?.toLowerCase()) {
+      case 'organico': return 'organico';
+      case 'inorganico': return 'inorganico';
+      case 'reciclable': return 'reciclable';
+      default: return 'organico';
+    }
+  };
+
+  const getClasificacionText = (clasificacion) => {
+    switch (clasificacion?.toLowerCase()) {
+      case 'organico': return 'Orgánico';
+      case 'inorganico': return 'Inorgánico';
+      case 'reciclable': return 'Reciclable';
+      default: return clasificacion || 'No clasificado';
+    }
+  };
+
+  const getClasificacionIcon = (clasificacion) => {
+    switch (clasificacion?.toLowerCase()) {
+      case 'organico': return '🌱';
+      case 'inorganico': return '🏭';
+      case 'reciclable': return '♻️';
+      default: return '📦';
+    }
+  };
 
   if (loading) {
     return (
@@ -200,13 +337,13 @@ export default function UserPortal() {
         <div className="portal-welcome">
           <div className="welcome-badge">
             <Sparkles size={16} />
-            <span>Panel de Control</span>
+            <span>Panel Personal</span>
           </div>
           <h1 className="portal-title">
             ¡Hola, {user?.nombre || "Usuario"}!
           </h1>
           <p className="portal-subtitle">
-            Bienvenido a tu panel de visualización de datos en tiempo real
+            Gestiona tus tachos y detecciones personales
           </p>
         </div>
 
@@ -238,7 +375,7 @@ export default function UserPortal() {
         </div>
       </div>
 
-      {/* Stats Overview */}
+      {/* Stats Overview - MODIFICADO */}
       <div ref={statsRef} className="portal-stats-grid">
         <div className="portal-stat-card">
           <div className="stat-card-content">
@@ -251,7 +388,7 @@ export default function UserPortal() {
                 <span className="stat-number">{animatedStats.totalTachos}</span>
                 <TrendingUp size={20} className="stat-trend" />
               </div>
-              <div className="stat-label">Tachos Activos</div>
+              <div className="stat-label">Mis Tachos</div>
               <div className="stat-progress">
                 <div className="stat-progress-bar green" style={{ width: '75%' }}></div>
               </div>
@@ -268,10 +405,10 @@ export default function UserPortal() {
             </div>
             <div className="stat-details">
               <div className="stat-value">
-                <span className="stat-number">{animatedStats.totalDetecciones}</span>
+                <span className="stat-number">{animatedStats.misDetecciones}</span>
                 <Zap size={20} className="stat-trend" />
               </div>
-              <div className="stat-label">Detecciones Totales</div>
+              <div className="stat-label">Mis Detecciones</div>
               <div className="stat-progress">
                 <div className="stat-progress-bar blue" style={{ width: '85%' }}></div>
               </div>
@@ -283,15 +420,15 @@ export default function UserPortal() {
         <div className="portal-stat-card">
           <div className="stat-card-content">
             <div className="stat-icon-wrapper purple-gradient">
-              <MapPin size={28} />
+              <Target size={28} />
               <div className="stat-icon-glow"></div>
             </div>
             <div className="stat-details">
               <div className="stat-value">
-                <span className="stat-number">{animatedStats.totalUbicaciones}</span>
+                <span className="stat-number">{animatedStats.totalDetecciones}</span>
                 <Target size={20} className="stat-trend" />
               </div>
-              <div className="stat-label">Ubicaciones</div>
+              <div className="stat-label">Total Detecciones</div>
               <div className="stat-progress">
                 <div className="stat-progress-bar purple" style={{ width: '60%' }}></div>
               </div>
@@ -301,7 +438,7 @@ export default function UserPortal() {
         </div>
       </div>
 
-      {/* Navigation Tabs */}
+      {/* Navigation Tabs - MODIFICADO */}
       <div className="portal-tabs">
         <button
           className={`portal-tab ${activeView === "overview" ? "active" : ""}`}
@@ -312,32 +449,40 @@ export default function UserPortal() {
           {activeView === "overview" && <div className="tab-indicator"></div>}
         </button>
         <button
-          className={`portal-tab ${activeView === "tachos" ? "active" : ""}`}
-          onClick={() => setActiveView("tachos")}
+          className={`portal-tab ${activeView === "mytachos" ? "active" : ""}`}
+          onClick={() => setActiveView("mytachos")}
         >
           <Package size={20} />
-          <span>Tachos</span>
-          {activeView === "tachos" && <div className="tab-indicator"></div>}
+          <span>Mis Tachos</span>
+          {activeView === "mytachos" && <div className="tab-indicator"></div>}
+        </button>
+        <button
+          className={`portal-tab ${activeView === "mydetecciones" ? "active" : ""}`}
+          onClick={() => setActiveView("mydetecciones")}
+        >
+          <Brain size={20} />
+          <span>Mis Detecciones</span>
+          {activeView === "mydetecciones" && <div className="tab-indicator"></div>}
         </button>
         <button
           className={`portal-tab ${activeView === "detecciones" ? "active" : ""}`}
           onClick={() => setActiveView("detecciones")}
         >
           <Radio size={20} />
-          <span>Detecciones IA</span>
+          <span>Nueva Detección</span>
           {activeView === "detecciones" && <div className="tab-indicator"></div>}
         </button>
       </div>
 
-      {/* Vista General */}
+      {/* Vista General - MODIFICADA */}
       {activeView === "overview" && (
         <div className="portal-view">
-          {/* Activity Timeline */}
+          {/* Activity Timeline - MEJORADA */}
           <div className="portal-card activity-card">
             <div className="portal-card-header">
               <div className="card-header-left">
                 <Activity size={24} className="header-icon" />
-                <h3 className="portal-card-title">Actividad Reciente</h3>
+                <h3 className="portal-card-title">Mis Detecciones Recientes</h3>
               </div>
               <div className="card-header-actions">
                 <span className="live-badge">
@@ -348,51 +493,72 @@ export default function UserPortal() {
             </div>
             <div className="portal-card-body">
               <div className="activity-timeline">
-                {detecciones.slice(0, 6).map((det, index) => (
-                  <div key={det.id} className="activity-item" style={{ animationDelay: `${index * 0.1}s` }}>
-                    <div className="activity-line"></div>
-                    <div className="activity-dot">
-                      <Brain size={16} />
-                    </div>
-                    <div className="activity-content">
-                      <div className="activity-header">
-                        <span className="activity-title">
-                          Detección <strong>{det.nombre}</strong>
-                        </span>
-                        <span className="activity-badge">{det.tacho_nombre}</span>
+                {misDetecciones.slice(0, 6).map((det, index) => {
+                  const ubicacion = getUbicacionFromCoords(det.ubicacion_lat, det.ubicacion_lon);
+                  const fechaRegistro = formatFechaLegible(det.fecha_registro || det.created_at);
+
+                  return (
+                    <div key={det.id} className="activity-item" style={{ animationDelay: `${index * 0.1}s` }}>
+                      <div className="activity-line"></div>
+                      <div className="activity-dot">
+                        <Brain size={16} />
                       </div>
-                      <div className="activity-meta">
-                        <Clock size={14} />
-                        <span>{new Date(det.fecha_registro).toLocaleString("es-EC")}</span>
+                      <div className="activity-content">
+                        <div className="activity-header">
+                          <span className="activity-title">
+                            <strong>{det.nombre}</strong> - {getClasificacionText(det.clasificacion)}
+                          </span>
+                          <span className={`activity-badge ${getClasificacionBadgeClass(det.clasificacion)}`}>
+                            {getClasificacionIcon(det.clasificacion)} {det.confianza_ia || 0}%
+                          </span>
+                        </div>
+                        <div className="activity-meta">
+                          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                              <MapPin size={14} />
+                              {ubicacion}
+                            </span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                              <Clock size={14} />
+                              {fechaRegistro}
+                            </span>
+                          </div>
+                        </div>
                       </div>
+                      <div className="activity-hover-effect"></div>
+                      <Link
+                        to={`/detecciones/${det.id}`}
+                        className="activity-detail-link"
+                      >
+                        <ArrowRight size={18} />
+                      </Link>
                     </div>
-                    <div className="activity-hover-effect"></div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
 
-          {/* Quick Actions */}
+          {/* Quick Actions - MODIFICADO */}
           <div className="quick-actions-grid">
-            <div className="quick-action-card" onClick={() => setActiveView("tachos")}>
+            <div className="quick-action-card" onClick={() => setActiveView("mytachos")}>
               <div className="quick-action-icon green-gradient">
                 <Trash2 size={24} />
               </div>
               <div className="quick-action-content">
-                <h4>Ver Tachos</h4>
-                <p>Explora todos los tachos inteligentes</p>
+                <h4>Mis Tachos</h4>
+                <p>Gestiona tus tachos personales</p>
               </div>
               <ArrowRight size={20} className="quick-action-arrow" />
             </div>
 
             <div className="quick-action-card" onClick={() => setActiveView("detecciones")}>
               <div className="quick-action-icon blue-gradient">
-                <Brain size={24} />
+                <Camera size={24} />
               </div>
               <div className="quick-action-content">
-                <h4>Ver Detecciones</h4>
-                <p>Revisa las detecciones de IA</p>
+                <h4>Nueva Detección</h4>
+                <p>Clasifica residuos con IA</p>
               </div>
               <ArrowRight size={20} className="quick-action-arrow" />
             </div>
@@ -400,21 +566,118 @@ export default function UserPortal() {
         </div>
       )}
 
-      {/* Vista de Tachos */}
-      {activeView === "tachos" && (
+      {/* Vista de MIS Tachos */}
+      {activeView === "mytachos" && (
         <div className="portal-view">
           <div className="portal-card">
             <div className="portal-card-header">
               <div className="card-header-left">
                 <Package size={24} className="header-icon" />
-                <h3 className="portal-card-title">Tachos Inteligentes</h3>
+                <h3 className="portal-card-title">Mis Tachos Personales</h3>
               </div>
               <div className="card-header-actions">
                 <div className="search-box">
                   <Search size={18} />
                   <input
                     type="text"
-                    placeholder="Buscar tachos..."
+                    placeholder="Buscar mis tachos..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <button className="export-btn">
+                  <Download size={18} />
+                  <span>Exportar</span>
+                </button>
+              </div>
+            </div>
+            <div className="portal-card-body">
+              {misTachos.length === 0 ? (
+                <div className="empty-state">
+                  <Trash2 size={48} style={{ opacity: 0.3, marginBottom: '1rem' }} />
+                  <h4 style={{ fontSize: '1rem', marginBottom: '0.5rem', color: '#4b5563' }}>
+                    No tienes tachos personales
+                  </h4>
+                  <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
+                    Contacta al administrador para crear tachos personales
+                  </p>
+                </div>
+              ) : (
+                <div className="portal-table-container">
+                  <table className="portal-table">
+                    <thead>
+                      <tr>
+                        <th><div className="th-content"><span>Código</span></div></th>
+                        <th><div className="th-content"><span>Nombre</span></div></th>
+                        <th><div className="th-content"><MapPin size={14} /><span>Ubicación</span></div></th>
+                        <th><div className="th-content"><span>Tipo</span></div></th>
+                        <th><div className="th-content"><span>Estado</span></div></th>
+                        <th><div className="th-content"><span>Llenado</span></div></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredTachos.map((tacho, index) => (
+                        <tr key={tacho.id} style={{ animationDelay: `${index * 0.05}s` }}>
+                          <td><span className="table-badge green">{tacho.codigo}</span></td>
+                          <td>
+                            <div className="table-primary">
+                              <Trash2 size={16} />
+                              <span>{tacho.nombre}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="table-coords">
+                              <MapPin size={14} />
+                              <span>
+                                {getUbicacionFromCoords(tacho.ubicacion_lat, tacho.ubicacion_lon)}
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`status-badge ${tacho.tipo === 'personal' ? 'active' : 'warning'}`}>
+                              {tacho.tipo === 'personal' ? 'Personal' : 'Público'}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`status-badge ${tacho.estado === 'activo' ? 'active' : 'danger'}`}>
+                              {tacho.estado === 'activo' ? 'Activo' : 'Inactivo'}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="fill-progress">
+                              <div
+                                className="fill-progress-bar"
+                                style={{ width: `${tacho.nivel_llenado || 0}%` }}
+                              ></div>
+                              <span>{tacho.nivel_llenado || 0}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Vista de MIS Detecciones */}
+      {activeView === "mydetecciones" && (
+        <div className="portal-view">
+          <div className="portal-card">
+            <div className="portal-card-header">
+              <div className="card-header-left">
+                <Brain size={24} className="header-icon" />
+                <h3 className="portal-card-title">Mis Detecciones</h3>
+              </div>
+              <div className="card-header-actions">
+                <div className="search-box">
+                  <Search size={18} />
+                  <input
+                    type="text"
+                    placeholder="Buscar mis detecciones..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
@@ -429,79 +692,97 @@ export default function UserPortal() {
               </div>
             </div>
             <div className="portal-card-body">
-              <div className="portal-table-container">
-                <table className="portal-table">
-                  <thead>
-                    <tr>
-                      <th>
-                        <div className="th-content">
-                          <span>Código</span>
-                        </div>
-                      </th>
-                      <th>
-                        <div className="th-content">
-                          <span>Nombre</span>
-                        </div>
-                      </th>
-                      <th>
-                        <div className="th-content">
-                          <MapPin size={14} />
-                          <span>Ubicación</span>
-                        </div>
-                      </th>
-                      <th>
-                        <div className="th-content">
-                          <span>Descripción</span>
-                        </div>
-                      </th>
-                      <th>
-                        <div className="th-content">
-                          <span>Estado</span>
-                        </div>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredTachos.map((tacho, index) => (
-                      <tr key={tacho.id} style={{ animationDelay: `${index * 0.05}s` }}>
-                        <td>
-                          <span className="table-badge green">{tacho.codigo}</span>
-                        </td>
-                        <td>
-                          <div className="table-primary">
-                            <Trash2 size={16} />
-                            <span>{tacho.nombre}</span>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="table-coords">
-                            <MapPin size={14} />
-                            <span>
-                              {tacho.ubicacion_lat?.toFixed(4)}, {tacho.ubicacion_lon?.toFixed(4)}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="table-description">{tacho.descripcion || "—"}</td>
-                        <td>
-                          <span className="status-badge active">
-                            <CheckCircle size={14} />
-                            <span>Activo</span>
-                          </span>
-                        </td>
+              {misDetecciones.length === 0 ? (
+                <div className="empty-state">
+                  <Brain size={48} style={{ opacity: 0.3, marginBottom: '1rem' }} />
+                  <h4 style={{ fontSize: '1rem', marginBottom: '0.5rem', color: '#4b5563' }}>
+                    No tienes detecciones personales
+                  </h4>
+                  <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
+                    Crea tu primera detección en la sección "Nueva Detección"
+                  </p>
+                </div>
+              ) : (
+                <div className="portal-table-container">
+                  <table className="portal-table">
+                    <thead>
+                      <tr>
+                        <th><div className="th-content"><span>Nombre</span></div></th>
+                        <th><div className="th-content"><span>Clasificación</span></div></th>
+                        <th><div className="th-content"><MapPin size={14} /><span>Ubicación</span></div></th>
+                        <th><div className="th-content"><Calendar size={14} /><span>Fecha</span></div></th>
+                        <th><div className="th-content"><span>Confianza IA</span></div></th>
+                        <th><div className="th-content"><span>Acciones</span></div></th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {filteredDetecciones.map((det, index) => {
+                        const ubicacion = getUbicacionFromCoords(det.ubicacion_lat, det.ubicacion_lon);
+                        const fechaRegistro = formatFechaLegible(det.fecha_registro || det.created_at);
+
+                        return (
+                          <tr key={det.id} style={{ animationDelay: `${index * 0.05}s` }}>
+                            <td>
+                              <div className="table-primary">
+                                <Brain size={16} />
+                                <span>{det.nombre}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <span style={{ fontSize: '1rem' }}>
+                                  {getClasificacionIcon(det.clasificacion)}
+                                </span>
+                                <span className={`clasification-badge ${getClasificacionBadgeClass(det.clasificacion)}`}>
+                                  {getClasificacionText(det.clasificacion)}
+                                </span>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="table-coords">
+                                <MapPin size={14} />
+                                <span>{ubicacion}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="table-date">
+                                <Clock size={14} />
+                                <span>{fechaRegistro}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <span className={`confianza-badge ${parseFloat(det.confianza_ia || 0) >= 80 ? 'high' :
+                                parseFloat(det.confianza_ia || 0) >= 60 ? 'medium' : 'low'}`}>
+                                {det.confianza_ia || 0}%
+                              </span>
+                            </td>
+                            <td>
+                              <div className="action-buttons">
+                                <Link
+                                  to={`/detecciones/${det.id}`}
+                                  className="detail-btn"
+                                >
+                                  <ImageIcon size={16} />
+                                  <span>Detalle</span>
+                                </Link>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Vista de Detecciones CON IA */}
+      {/* Vista de Nueva Detección con IA */}
       {activeView === "detecciones" && (
         <div className="portal-view">
-          {/* SECCIÓN DE ANÁLISIS CON IA - DISEÑO RENOVADO */}
+          {/* SECCIÓN DE ANÁLISIS CON IA */}
           <div style={{
             maxWidth: '1200px',
             margin: '0 auto 40px',
@@ -550,7 +831,7 @@ export default function UserPortal() {
                 marginRight: 'auto'
               }}>
                 Captura o sube una foto para que nuestra IA analice y clasifique automáticamente
-                el tipo de residuo en tiempo real usando YOLO + RoboFlow.
+                el tipo de residuo. La detección se guardará solo en tu cuenta personal.
               </p>
             </div>
 
@@ -583,9 +864,9 @@ export default function UserPortal() {
                   right: 0,
                   bottom: 0,
                   backgroundImage: `
-              linear-gradient(45deg, transparent 0%, transparent 49%, rgba(16, 185, 129, 0.02) 50%, transparent 51%, transparent 100%),
-              linear-gradient(-45deg, transparent 0%, transparent 49%, rgba(16, 185, 129, 0.02) 50%, transparent 51%, transparent 100%)
-            `,
+                    linear-gradient(45deg, transparent 0%, transparent 49%, rgba(16, 185, 129, 0.02) 50%, transparent 51%, transparent 100%),
+                    linear-gradient(-45deg, transparent 0%, transparent 49%, rgba(16, 185, 129, 0.02) 50%, transparent 51%, transparent 100%)
+                  `,
                   backgroundSize: '40px 40px',
                   opacity: 0.5,
                   pointerEvents: 'none'
@@ -605,7 +886,6 @@ export default function UserPortal() {
                         borderRadius: '8px'
                       }}
                     />
-                    {/* Badge de estado */}
                     <div style={{
                       position: 'absolute',
                       top: '20px',
@@ -674,7 +954,7 @@ export default function UserPortal() {
                       backdropFilter: 'blur(5px)'
                     }}>
                       <Scan size={18} />
-                      <span style={{ fontWeight: '500' }}>La IA detectará y clasificará automáticamente</span>
+                      <span style={{ fontWeight: '500' }}>La detección se guardará solo en tu cuenta</span>
                     </div>
                   </div>
                 )}
@@ -813,15 +1093,15 @@ export default function UserPortal() {
                 <Scan size={20} style={{ flexShrink: 0, color: '#10b981' }} />
                 <span style={{ fontWeight: '500', lineHeight: '1.5' }}>
                   {capturedImage
-                    ? "✅ Imagen cargada. Desplázate hacia abajo para iniciar el análisis con Roboflow."
-                    : "💡 Utiliza cámara en vivo o sube una imagen existente para clasificar residuos automáticamente."
+                    ? "✅ Imagen cargada. La detección se guardará solo en tu cuenta personal sin asociar a tacho."
+                    : "💡 Utiliza cámara en vivo o sube una imagen existente. La detección será personal y no se asociará a ningún tacho."
                   }
                 </span>
               </div>
             </div>
           </div>
 
-          {/* PROCESADOR IA */}
+          {/* PROCESADOR IA MODIFICADO */}
           {showAIProcessor && capturedImage && (
             <div ref={aiSectionRef} style={{
               maxWidth: '1200px',
@@ -835,134 +1115,26 @@ export default function UserPortal() {
                 boxShadow: '0 4px 24px rgba(0, 0, 0, 0.08)',
                 border: '2px solid #e5e7eb'
               }}>
-                <AIProcessor capturedImage={capturedImage} />
+                <AIProcessor
+                  capturedImage={capturedImage}
+                  onNewDetection={handleNewDetection}
+                />
               </div>
             </div>
           )}
-
-          {/* TABLA DE DETECCIONES */}
-          <div className="portal-card">
-            <div className="portal-card-header">
-              <div className="card-header-left">
-                <Brain size={24} className="header-icon" />
-                <h3 className="portal-card-title">Historial de Detecciones</h3>
-              </div>
-              <div className="card-header-actions">
-                <div className="search-box">
-                  <Search size={18} />
-                  <input
-                    type="text"
-                    placeholder="Buscar detecciones..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                <button className="filter-btn">
-                  <Filter size={18} />
-                </button>
-                <button className="export-btn">
-                  <Download size={18} />
-                  <span>Exportar</span>
-                </button>
-              </div>
-            </div>
-            <div className="portal-card-body">
-              <div className="portal-table-container">
-                <table className="portal-table">
-                  <thead>
-                    <tr>
-                      <th>
-                        <div className="th-content">
-                          <span>Código</span>
-                        </div>
-                      </th>
-                      <th>
-                        <div className="th-content">
-                          <span>Nombre</span>
-                        </div>
-                      </th>
-                      <th>
-                        <div className="th-content">
-                          <span>Tacho</span>
-                        </div>
-                      </th>
-                      <th>
-                        <div className="th-content">
-                          <MapPin size={14} />
-                          <span>Ubicación</span>
-                        </div>
-                      </th>
-                      <th>
-                        <div className="th-content">
-                          <Calendar size={14} />
-                          <span>Fecha</span>
-                        </div>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredDetecciones.map((det, index) => (
-                      <tr key={det.id} style={{ animationDelay: `${index * 0.05}s` }}>
-                        <td>
-                          <span className="table-badge blue">{det.codigo}</span>
-                        </td>
-                        <td>
-                          <div className="table-primary">
-                            <Brain size={16} />
-                            <span>{det.nombre}</span>
-                          </div>
-                        </td>
-                        <td>{det.tacho_nombre}</td>
-                        <td>
-                          <div className="table-coords">
-                            <MapPin size={14} />
-                            <span>
-                              {det.ubicacion_lon}, {det.ubicacion_lat}
-                            </span>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="table-date">
-                            <Calendar size={14} />
-                            <span>{new Date(det.fecha_registro).toLocaleDateString("es-EC")}</span>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          {/* CSS para animación */}
-          <style>{`
-      @keyframes pulse-border {
-        0%, 100% {
-          border-color: rgba(16, 185, 129, 0.3);
-          transform: scale(1);
-        }
-        50% {
-          border-color: rgba(16, 185, 129, 0.6);
-          transform: scale(1.05);
-        }
-      }
-    `}</style>
         </div>
       )}
 
-
-      
       {/* Info Card */}
       <div className="portal-info-card">
         <div className="info-icon-wrapper">
           <AlertCircle size={24} />
         </div>
         <div className="info-content">
-          <h4 className="info-title">Vista de Solo Lectura</h4>
+          <h4 className="info-title">Panel Personal</h4>
           <p className="info-text">
-            Estás visualizando los datos en modo solo lectura. Si necesitas
-            permisos de administración, contacta al administrador del sistema.
+            Aquí puedes ver y gestionar solo tus tachos personales y detecciones.
+            Las nuevas detecciones se guardarán únicamente en tu cuenta sin asociarse a tachos.
           </p>
         </div>
       </div>

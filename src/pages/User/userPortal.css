@@ -31,6 +31,222 @@
   animation: floatBackground 25s infinite ease-in-out;
 }
 
+/* Agrega esto al final de userPortal.css */
+
+/* Nuevos estilos para mejoras */
+
+/* Badge de clasificación en activity timeline */
+.activity-badge.organico {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+}
+
+.activity-badge.inorganico {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+}
+
+.activity-badge.reciclable {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  color: white;
+}
+
+.activity-detail-link {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(45, 106, 79, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary);
+  opacity: 0;
+  transition: all 0.3s ease;
+}
+
+.activity-item:hover .activity-detail-link {
+  opacity: 1;
+  transform: translateY(-50%) translateX(-4px);
+}
+
+.activity-detail-link:hover {
+  background: var(--color-primary);
+  color: white;
+}
+
+/* Estado vacío */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+  text-align: center;
+}
+
+/* Barra de progreso de llenado */
+.fill-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.fill-progress-bar {
+  flex: 1;
+  height: 8px;
+  background: linear-gradient(90deg, #95D5B2, #74C69D);
+  border-radius: var(--radius-xl);
+  position: relative;
+  overflow: hidden;
+}
+
+.fill-progress-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+  animation: shimmer 2s infinite;
+}
+
+/* Badge de confianza */
+.confianza-badge {
+  display: inline-flex;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.confianza-badge.high {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+}
+
+.confianza-badge.medium {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+}
+
+.confianza-badge.low {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+}
+
+/* Botones de acción */
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.detail-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.375rem 0.75rem;
+  background-color: #e0f2fe;
+  color: #0369a1;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s;
+  border: 1px solid #bae6fd;
+}
+
+.detail-btn:hover {
+  background-color: #bae6fd;
+  transform: translateY(-1px);
+}
+
+/* Badge de clasificación */
+.clasification-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.clasification-badge.organico {
+  background: rgba(16, 185, 129, 0.1);
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.clasification-badge.inorganico {
+  background: rgba(245, 158, 11, 0.1);
+  color: #92400e;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.clasification-badge.reciclable {
+  background: rgba(59, 130, 246, 0.1);
+  color: #1e40af;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+/* Status badges adicionales */
+.status-badge.warning {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+}
+
+.status-badge.danger {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+}
+
+.status-badge.warning,
+.status-badge.danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 4px 12px;
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Mejora en la tabla para acciones */
+.portal-table td:last-child {
+  text-align: center;
+}
+
+/* Animación para nuevos elementos */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Responsive para la sección IA */
+@media (max-width: 768px) {
+  .ia-controls-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .portal-info-card {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .info-icon-wrapper {
+    margin: 0 auto;
+  }
+}
+
 .portal-bg-circle-1 {
   width: 600px;
   height: 600px;

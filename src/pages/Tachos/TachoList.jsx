@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Trash2, Plus, Search, Edit, Eye, MapPin, Layers,
-  Battery, Activity, AlertCircle
+  Battery, Activity, AlertCircle, Clock, Check, XCircle
 } from "lucide-react";
 import api from "../../api/axiosConfig";
 import "../adminPages.css";
@@ -12,10 +12,49 @@ const TachoList = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Función para obtener ubicación aproximada desde coordenadas
+  const getUbicacionFromCoords = (lat, lon) => {
+    if (!lat || !lon) return "Ubicación desconocida";
+
+    const latNum = parseFloat(lat);
+    const lonNum = parseFloat(lon);
+
+    // Coordenadas aproximadas para provincias de Ecuador
+    const locations = [
+      { provincia: "Pichincha", ciudad: "Quito", latRange: [-0.3, 0.1], lonRange: [-78.6, -78.4] },
+      { provincia: "Guayas", ciudad: "Guayaquil", latRange: [-2.3, -2.1], lonRange: [-79.95, -79.85] },
+      { provincia: "Azuay", ciudad: "Cuenca", latRange: [-2.92, -2.88], lonRange: [-79.02, -78.98] },
+      { provincia: "Manabí", ciudad: "Manta", latRange: [-1.06, -0.98], lonRange: [-80.75, -80.65] },
+      { provincia: "El Oro", ciudad: "Machala", latRange: [-3.28, -3.24], lonRange: [-79.97, -79.93] },
+      { provincia: "Loja", ciudad: "Loja", latRange: [-4.02, -3.98], lonRange: [-79.22, -79.18] },
+      { provincia: "Tungurahua", ciudad: "Ambato", latRange: [-1.28, -1.22], lonRange: [-78.65, -78.59] },
+      { provincia: "Imbabura", ciudad: "Ibarra", latRange: [0.35, 0.39], lonRange: [-78.15, -78.11] },
+      { provincia: "Cotopaxi", ciudad: "Latacunga", latRange: [-0.95, -0.91], lonRange: [-78.62, -78.58] },
+      { provincia: "Chimborazo", ciudad: "Riobamba", latRange: [-1.68, -1.64], lonRange: [-78.67, -78.63] },
+    ];
+
+    for (const location of locations) {
+      if (
+        latNum >= location.latRange[0] && latNum <= location.latRange[1] &&
+        lonNum >= location.lonRange[0] && lonNum <= location.lonRange[1]
+      ) {
+        return `${location.ciudad}`;
+      }
+    }
+
+    // Si no encuentra coincidencia exacta
+    if (latNum > 0) return "Norte";
+    if (latNum < -2) return "Sur";
+    if (lonNum < -80) return "Costa";
+    return "Sierra";
+  };
+
   const loadTachos = async () => {
     try {
       const res = await api.get("/tachos/");
-      setTachos(res.data);
+      // Filtrar solo tachos activos (activo = true)
+      const tachosActivos = res.data.filter(tacho => tacho.activo === true);
+      setTachos(tachosActivos);
     } catch (e) {
       console.error("Error cargando tachos", e);
     } finally {
@@ -23,14 +62,21 @@ const TachoList = () => {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleSoftDelete = async (id) => {
     if (!window.confirm("¿Está seguro que desea eliminar este tacho?")) return;
 
     try {
-      await api.delete(`/tachos/${id}/`);
-      setTachos((prev) => prev.filter((t) => t.id !== id));
+      // Enviar solicitud para marcar como inactivo
+      await api.patch(`/tachos/${id}/`, { activo: false });
+
+      // Actualizar lista local
+      setTachos(prev => prev.filter((t) => t.id !== id));
+
+      // Mostrar mensaje de éxito
+      alert("Tacho eliminado correctamente");
     } catch (e) {
-      alert("No se pudo eliminar el tacho");
+      console.error("Error eliminando tacho", e);
+      alert("No se pudo eliminar el tacho. Intente nuevamente.");
     }
   };
 
@@ -38,47 +84,41 @@ const TachoList = () => {
     loadTachos();
   }, []);
 
-  // Función para obtener la clase CSS según el estado
-  const getEstadoClass = (estado) => {
-    switch (estado) {
-      case 'activo':
-        return 'status-active';
-      case 'mantenimiento':
-        return 'status-warning';
-      case 'fuera_servicio':
-        return 'status-inactive';
-      default:
-        return 'status-active';
-    }
-  };
-
-  // Función para obtener el texto del estado
-  const getEstadoText = (estado) => {
-    switch (estado) {
-      case 'activo':
-        return 'Activo';
-      case 'mantenimiento':
-        return 'Mantenimiento';
-      case 'fuera_servicio':
-        return 'Fuera Servicio';
-      default:
-        return estado;
-    }
-  };
-
   // Función para obtener el color del nivel de llenado
   const getNivelColor = (nivel) => {
-    if (nivel >= 80) return '#ff3b30';
-    if (nivel >= 50) return '#ff9500';
-    return '#34c759';
+    const nivelValue = nivel || 0;
+    if (nivelValue >= 80) return '#ef4444';
+    if (nivelValue >= 50) return '#f59e0b';
+    return '#10b981';
+  };
+
+  // Función para formatear fecha corta
+  const formatFechaCorta = (fechaString) => {
+    if (!fechaString) return 'N/D';
+    const fecha = new Date(fechaString);
+    return fecha.toLocaleDateString('es-EC', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit'
+    });
   };
 
   const filteredTachos = tachos.filter((tacho) =>
     tacho.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     tacho.codigo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tacho.descripcion?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    tacho.empresa_nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     tacho.estado?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Estadísticas mejoradas
+  const stats = {
+    total: tachos.length,
+    activos: tachos.filter(t => t.estado === 'activo').length,
+    mantenimiento: tachos.filter(t => t.estado === 'mantenimiento').length,
+    altaCarga: tachos.filter(t => (t.nivel_llenado || 0) >= 80).length,
+    publicos: tachos.filter(t => t.tipo === 'publico').length,
+    personales: tachos.filter(t => t.tipo === 'personal').length
+  };
 
   if (loading) {
     return (
@@ -95,7 +135,7 @@ const TachoList = () => {
       <div className="page-header">
         <div className="page-header-content">
           <h2>
-            <Trash2 className="icon-lg" style={{ display: "inline", marginRight: "12px" }} />
+            <Trash2 className="icon-lg" />
             Gestión de Tachos Inteligentes
           </h2>
           <p className="page-header-subtitle">
@@ -117,19 +157,23 @@ const TachoList = () => {
           <input
             type="text"
             className="search-input"
-            placeholder="Buscar por nombre, código, descripción o estado..."
+            placeholder="Buscar por código, nombre o empresa..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
+        <div style={{ fontSize: "0.875rem", color: "#6b7280", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <Check className="icon-sm" style={{ color: "#10b981" }} />
+          Mostrando {tachos.length} tachos activos
+        </div>
       </div>
 
-      {/* Stats Summary */}
-      <div className="stats-grid" style={{ marginBottom: "24px" }}>
+      {/* Stats Summary - COMPACTO */}
+      <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-content">
-            <h3>{tachos.length}</h3>
-            <p>Total Tachos</p>
+            <h3>{stats.total}</h3>
+            <p>Total Activos</p>
           </div>
           <div className="stat-icon">
             <Trash2 className="icon-lg" />
@@ -138,161 +182,272 @@ const TachoList = () => {
 
         <div className="stat-card">
           <div className="stat-content">
-            <h3>{tachos.filter(t => t.estado === 'activo').length}</h3>
-            <p>Activos</p>
+            <h3>{stats.activos}</h3>
+            <p>En Operación</p>
           </div>
-          <div className="stat-icon" style={{ backgroundColor: '#e6f4ea' }}>
-            <Activity className="icon-lg" style={{ color: '#34c759' }} />
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-content">
-            <h3>{tachos.filter(t => t.estado === 'mantenimiento').length}</h3>
-            <p>En Mantenimiento</p>
-          </div>
-          <div className="stat-icon" style={{ backgroundColor: '#fff4e6' }}>
-            <AlertCircle className="icon-lg" style={{ color: '#ff9500' }} />
+          <div className="stat-icon" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)' }}>
+            <Check className="icon-lg" style={{ color: '#10b981' }} />
           </div>
         </div>
 
         <div className="stat-card">
           <div className="stat-content">
-            <h3>{tachos.filter(t => t.nivel_llenado >= 80).length}</h3>
-            <p>Con Alta Carga</p>
+            <h3>{stats.mantenimiento}</h3>
+            <p>Mantenimiento</p>
           </div>
-          <div className="stat-icon" style={{ backgroundColor: '#ffe6e6' }}>
-            <Battery className="icon-lg" style={{ color: '#ff3b30' }} />
+          <div className="stat-icon" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)' }}>
+            <AlertCircle className="icon-lg" style={{ color: '#f59e0b' }} />
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-content">
+            <h3>{stats.altaCarga}</h3>
+            <p>Alta Carga</p>
+          </div>
+          <div className="stat-icon" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)' }}>
+            <Battery className="icon-lg" style={{ color: '#ef4444' }} />
           </div>
         </div>
       </div>
 
-      {/* Data Table */}
+      {/* Tipo de Tachos */}
+      <div style={{
+        display: "flex",
+        gap: "0.75rem",
+        marginBottom: "1.5rem",
+        flexWrap: "wrap"
+      }}>
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.5rem",
+          padding: "0.5rem 1rem",
+          backgroundColor: "rgba(16, 185, 129, 0.1)",
+          borderRadius: "8px",
+          fontSize: "0.875rem"
+        }}>
+          <div style={{
+            width: "8px",
+            height: "8px",
+            borderRadius: "50%",
+            backgroundColor: "#10b981"
+          }}></div>
+          <span style={{ fontWeight: "500", color: "#065f46" }}>
+            Públicos: {stats.publicos}
+          </span>
+        </div>
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.5rem",
+          padding: "0.5rem 1rem",
+          backgroundColor: "rgba(59, 130, 246, 0.1)",
+          borderRadius: "8px",
+          fontSize: "0.875rem"
+        }}>
+          <div style={{
+            width: "8px",
+            height: "8px",
+            borderRadius: "50%",
+            backgroundColor: "#3b82f6"
+          }}></div>
+          <span style={{ fontWeight: "500", color: "#1e40af" }}>
+            Personales: {stats.personales}
+          </span>
+        </div>
+      </div>
+
+      {/* Data Table - TABLA MÁS COMPACTA */}
       {filteredTachos.length === 0 ? (
         <div className="empty-state">
           <Trash2 className="empty-state-icon" size={64} />
-          <h3>No se encontraron tachos</h3>
-          <p>Intente ajustar la búsqueda o agregue un nuevo tacho inteligente</p>
+          <h3>No se encontraron tachos activos</h3>
+          <p>{searchTerm ? "Intente ajustar la búsqueda" : "Agregue un nuevo tacho inteligente"}</p>
           <Link to="/tachos/nuevo" className="btn btn-primary">
             <Plus className="icon-md" />
-            Crear Primer Tacho
+            Crear Nuevo Tacho
           </Link>
         </div>
       ) : (
         <div className="data-table-wrapper">
-          <table className="data-table">
+          <table className="data-table" style={{ minWidth: "800px" }}>
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Código</th>
-                <th>Nombre</th>
-                <th>Estado</th>
-                <th>Nivel</th>
-                <th>Ubicación</th>
-                <th>Última Detección</th>
-                <th>Acciones</th>
+                <th style={{ width: "100px" }}>Código</th>
+                <th style={{ minWidth: "180px" }}>Nombre / Empresa</th>
+                <th style={{ width: "100px" }}>Estado</th>
+                <th style={{ width: "120px" }}>Nivel</th>
+                <th style={{ width: "140px" }}>Ubicación</th>
+                <th style={{ width: "100px" }}>Tipo</th>
+                <th style={{ width: "100px" }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {filteredTachos.map((t) => (
-                <tr key={t.id}>
-                  <td className="table-id">#{t.id}</td>
-                  <td>
-                    <span className="badge badge-primary">
-                      <Layers className="icon-sm" />
-                      {t.codigo}
-                    </span>
-                  </td>
-                  <td className="table-primary">{t.nombre}</td>
-                  <td>
-                    <span className={`status-badge ${getEstadoClass(t.estado)}`}>
-                      <span className="status-indicator"></span>
-                      {getEstadoText(t.estado)}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="nivel-container-small">
-                      <div className="nivel-bar-small">
-                        <div
-                          className="nivel-fill-small"
-                          style={{
-                            width: `${t.nivel_llenado || 0}%`,
-                            backgroundColor: getNivelColor(t.nivel_llenado || 0)
-                          }}
-                        >
-                          <span className="nivel-text-small">{t.nivel_llenado || 0}%</span>
+              {filteredTachos.map((t) => {
+                // Obtener ubicación aproximada
+                const ubicacionAprox = getUbicacionFromCoords(t.ubicacion_lat, t.ubicacion_lon);
+
+                // Obtener clase de estado
+                const estadoClass = t.estado === 'activo' ? 'status-active' :
+                                  t.estado === 'mantenimiento' ? 'status-warning' :
+                                  'status-inactive';
+
+                // Texto de estado
+                const estadoText = t.estado === 'activo' ? 'Activo' :
+                                 t.estado === 'mantenimiento' ? 'Mantenimiento' :
+                                 'Fuera Servicio';
+
+                return (
+                  <tr key={t.id}>
+                    <td>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <Layers className="icon-sm" style={{ color: "#10b981" }} />
+                        <span style={{
+                          fontWeight: "700",
+                          fontSize: "0.875rem",
+                          color: "#1f2937"
+                        }}>
+                          {t.codigo || 'N/A'}
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <div>
+                        <div className="table-primary" style={{ fontWeight: "600", marginBottom: "4px" }}>
+                          {t.nombre || 'Sin nombre'}
+                        </div>
+                        {t.empresa_nombre && (
+                          <div style={{
+                            fontSize: "0.75rem",
+                            color: "#6b7280",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px"
+                          }}>
+                            <BuildingIcon />
+                            {t.empresa_nombre}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      <span className={`status-badge ${estadoClass}`}>
+                        <span className="status-indicator"></span>
+                        {estadoText}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="nivel-container-small">
+                        <div className="nivel-bar-small">
+                          <div
+                            className="nivel-fill-small"
+                            style={{
+                              width: `${t.nivel_llenado || 0}%`,
+                              backgroundColor: getNivelColor(t.nivel_llenado)
+                            }}
+                          >
+                            <span className="nivel-text-small">
+                              {t.nivel_llenado || 0}%
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </td>
-                  <td>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <MapPin className="icon-sm" style={{ color: "var(--color-primary)" }} />
-                      <span className="table-coords">
-                        {Number(t.ubicacion_lat)?.toFixed(4)}, {Number(t.ubicacion_lon)?.toFixed(4)}
-                      </span>
-                    </div>
-                  </td>
-                  <td>
-                    {t.ultima_deteccion ? (
-                      new Date(t.ultima_deteccion).toLocaleDateString('es-EC', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })
-                    ) : (
-                      'Nunca'
-                    )}
-                  </td>
-                  <td>
-                    <div className="action-buttons">
-                      <Link
-                        to={`/tachos/${t.id}`}
-                        className="btn-icon btn-view"
-                        title="Ver detalles"
-                      >
-                        <Eye className="icon-md" />
-                      </Link>
-                      <Link
-                        to={`/tachos/editar/${t.id}`}
-                        className="btn-icon btn-edit"
-                        title="Editar tacho"
-                      >
-                        <Edit className="icon-md" />
-                      </Link>
-                      <button
-                        onClick={() => handleDelete(t.id)}
-                        className="btn-icon btn-delete"
-                        title="Eliminar tacho"
-                      >
-                        <Trash2 className="icon-md" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <MapPin className="icon-sm" style={{ color: "#ef4444", flexShrink: 0 }} />
+                        <div>
+                          <div style={{
+                            fontSize: "0.875rem",
+                            fontWeight: "500",
+                            color: "#1f2937"
+                          }}>
+                            {ubicacionAprox}
+                          </div>
+                          <div style={{
+                            fontSize: "0.7rem",
+                            color: "#9ca3af",
+                            fontFamily: "monospace",
+                            marginTop: "2px"
+                          }}>
+                            {t.ubicacion_lat ? Number(t.ubicacion_lat).toFixed(4) : '0.0000'},
+                            {t.ubicacion_lon ? Number(t.ubicacion_lon).toFixed(4) : '0.0000'}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        padding: "4px 8px",
+                        backgroundColor: t.tipo === "personal" ? "rgba(59, 130, 246, 0.1)" : "rgba(16, 185, 129, 0.1)",
+                        color: t.tipo === "personal" ? "#1e40af" : "#065f46",
+                        borderRadius: "12px",
+                        fontSize: "0.75rem",
+                        fontWeight: "600",
+                        textTransform: "uppercase"
+                      }}>
+                        {t.tipo === "personal" ? "Personal" : "Público"}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="action-buttons">
+                        <Link
+                          to={`/tachos/${t.id}`}
+                          className="btn-icon btn-view"
+                          title="Ver detalles"
+                        >
+                          <Eye className="icon-md" />
+                        </Link>
+                        <Link
+                          to={`/tachos/editar/${t.id}`}
+                          className="btn-icon btn-edit"
+                          title="Editar tacho"
+                        >
+                          <Edit className="icon-md" />
+                        </Link>
+                        <button
+                          onClick={() => handleSoftDelete(t.id)}
+                          className="btn-icon btn-delete"
+                          title="Eliminar tacho (borrado lógico)"
+                        >
+                          <Trash2 className="icon-md" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
 
-      {/* Info Card */}
-      <div className="info-card">
+      {/* Info Card sobre eliminación lógica */}
+      <div className="info-card" style={{ marginTop: "1.5rem" }}>
         <div className="info-card-icon">
           <Trash2 className="icon-lg" />
         </div>
         <div className="info-card-content">
-          <h4>Tachos Inteligentes IoT</h4>
+          <h4>Eliminación Lógica</h4>
           <p>
-            Cada tacho cuenta con sensores que monitorean el nivel de llenado,
-            geolocalización GPS y conectividad en tiempo real para optimizar
-            las rutas de recolección.
+            Los tachos eliminados se marcan como inactivos pero no se borran permanentemente.
+            Esto permite mantener el historial y reactivarlos si es necesario.
           </p>
         </div>
       </div>
     </div>
   );
 };
+
+// Componente para icono de edificio
+const BuildingIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M3 21h18M9 8h1M9 12h1M9 16h1M14 8h1M14 12h1M14 16h1M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16" />
+  </svg>
+);
 
 export default TachoList;

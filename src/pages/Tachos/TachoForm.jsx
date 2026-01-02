@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import {
   Trash2, Save, X, MapPin, Layers, FileText, Tag,
-  Battery, Activity, Calendar, AlertCircle
+  Battery, Activity, Calendar, AlertCircle, User, Building,
+  Users, ChevronDown, EyeOff, Globe, CheckCircle, XCircle
 } from "lucide-react";
 import api from "../../api/axiosConfig";
 import "../adminPages.css";
@@ -23,6 +24,11 @@ const TachoForm = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [usuarios, setUsuarios] = useState([]);
+  const [loadingUsuarios, setLoadingUsuarios] = useState(false);
+  const [codigoDisponible, setCodigoDisponible] = useState(null);
+  const [verificandoCodigo, setVerificandoCodigo] = useState(false);
+  const [tachosExistentes, setTachosExistentes] = useState([]);
 
   // ------------------ FORM DATA -------------------------
   const [tacho, setTacho] = useState({
@@ -33,10 +39,60 @@ const TachoForm = () => {
     ubicacion_lon: "",
     canton: "",
     estado: "activo",
-    nivel_llenado: 0,
+    nivel_llenado: 0, // Siempre 0
+    tipo: "publico", // publico o personal
+    propietario: null, // ID del usuario
+    empresa_nombre: "", // Nombre de la empresa (si no hay usuario)
   });
 
   const [cantones, setCantones] = useState([]);
+
+  // ------------------ CARGAR USUARIOS ---------------------
+  const loadUsuarios = async () => {
+    setLoadingUsuarios(true);
+    try {
+      const res = await api.get("/usuarios/");
+      const usuariosData = res.data.results || res.data || [];
+      setUsuarios(usuariosData);
+    } catch (error) {
+      console.error("Error cargando usuarios", error);
+    } finally {
+      setLoadingUsuarios(false);
+    }
+  };
+
+  // ------------------ CARGAR TACHOS EXISTENTES PARA VALIDAR CÓDIGO ---------------------
+  const loadTachosExistentes = async () => {
+    try {
+      const res = await api.get("/tachos/");
+      const tachosData = res.data.results || res.data || [];
+      setTachosExistentes(tachosData);
+    } catch (error) {
+      console.error("Error cargando tachos existentes", error);
+    }
+  };
+
+  // ------------------ VALIDAR CÓDIGO ÚNICO ---------------------
+  const validarCodigoUnico = (codigo) => {
+    if (!codigo.trim()) {
+      setCodigoDisponible(null);
+      return;
+    }
+
+    setVerificandoCodigo(true);
+
+    // Si estamos editando, excluimos el tacho actual de la validación
+    const tachosParaValidar = id
+      ? tachosExistentes.filter(t => t.id !== parseInt(id))
+      : tachosExistentes;
+
+    const codigoExistente = tachosParaValidar.some(t =>
+      t.codigo.toLowerCase() === codigo.toLowerCase()
+    );
+
+    setCodigoDisponible(!codigoExistente);
+    setVerificandoCodigo(false);
+  };
 
   // ------------------ ICONO ESTILIZADO ----------------
   const markerIcon = new L.DivIcon({
@@ -118,12 +174,29 @@ const TachoForm = () => {
       const res = await api.get(`/tachos/${id}/`);
       const tachoData = res.data;
 
-      // Asegurar que nivel_llenado tenga valor por defecto
+      // Mostrar input de empresa si es público sin usuario o si tiene empresa_nombre
+      const mostrarEmpresaInput =
+        (tachoData.tipo === "publico" && !tachoData.propietario) ||
+        (tachoData.empresa_nombre && tachoData.empresa_nombre.trim() !== "");
+
       setTacho({
-        ...tachoData,
-        nivel_llenado: tachoData.nivel_llenado || 0,
-        estado: tachoData.estado || "activo"
+        codigo: tachoData.codigo || "",
+        nombre: tachoData.nombre || "",
+        descripcion: tachoData.descripcion || "",
+        ubicacion_lat: tachoData.ubicacion_lat || "",
+        ubicacion_lon: tachoData.ubicacion_lon || "",
+        canton: tachoData.canton || "",
+        estado: tachoData.estado || "activo",
+        nivel_llenado: 0, // Siempre 0, no se puede modificar
+        tipo: tachoData.tipo || "publico",
+        propietario: tachoData.propietario || null,
+        empresa_nombre: tachoData.empresa_nombre || "",
       });
+
+      // Validar código único después de cargar
+      if (tachoData.codigo) {
+        validarCodigoUnico(tachoData.codigo);
+      }
     } catch (e) {
       setError("No se pudo cargar el tacho");
     }
@@ -137,11 +210,13 @@ const TachoForm = () => {
   };
 
   useEffect(() => {
+    loadUsuarios();
     loadCantones();
+    loadTachosExistentes();
     if (id) loadTacho();
   }, [id]);
 
-  // ------------------ FORM --------------------------
+  // ------------------ MANEJO DE CAMBIOS EN EL FORMULARIO ----------
   const handleChange = (e) => {
     const { name, value, type } = e.target;
 
@@ -149,18 +224,61 @@ const TachoForm = () => {
       ...prev,
       [name]: type === 'number' ? parseFloat(value) : value
     }));
+
+    // Validar código único en tiempo real
+    if (name === "codigo") {
+      validarCodigoUnico(value);
+    }
+
     setError("");
   };
 
+  const handleTipoChange = (e) => {
+    const tipo = e.target.value;
+    setTacho(prev => ({
+      ...prev,
+      tipo,
+      // Si cambia a personal, limpiar empresa_nombre
+      empresa_nombre: tipo === "publico" ? prev.empresa_nombre : "",
+      // Si cambia a público, limpiar propietario
+      propietario: tipo === "publico" ? null : prev.propietario
+    }));
+  };
+
+  const handlePropietarioChange = (e) => {
+    const value = e.target.value;
+    const propietarioId = value === "" ? null : parseInt(value);
+
+    setTacho(prev => ({
+      ...prev,
+      propietario: propietarioId,
+      // Si selecciona un usuario, limpiar empresa_nombre
+      empresa_nombre: propietarioId ? "" : prev.empresa_nombre
+    }));
+  };
+
   const validateForm = () => {
+    // Validar campos obligatorios
     if (!tacho.codigo || !tacho.nombre) {
       setError("Código y nombre son obligatorios");
       return false;
     }
 
-    // Validar nivel de llenado entre 0 y 100
-    if (tacho.nivel_llenado < 0 || tacho.nivel_llenado > 100) {
-      setError("El nivel de llenado debe estar entre 0 y 100");
+    // Validar código único
+    if (codigoDisponible === false) {
+      setError("El código ya está en uso. Por favor, use un código diferente.");
+      return false;
+    }
+
+    // Validar que si es público sin usuario, tenga nombre de empresa
+    if (tacho.tipo === "publico" && !tacho.propietario && !tacho.empresa_nombre.trim()) {
+      setError("Para tachos públicos sin usuario asociado, debe ingresar el nombre de la empresa/institución");
+      return false;
+    }
+
+    // Validar coordenadas
+    if (!tacho.ubicacion_lat || !tacho.ubicacion_lon) {
+      setError("Debe seleccionar una ubicación en el mapa");
       return false;
     }
 
@@ -176,19 +294,44 @@ const TachoForm = () => {
 
     try {
       const dataToSend = {
-        ...tacho,
+        codigo: tacho.codigo.trim(),
+        nombre: tacho.nombre.trim(),
+        descripcion: tacho.descripcion || "",
         ubicacion_lat: tacho.ubicacion_lat ? parseFloat(tacho.ubicacion_lat) : null,
         ubicacion_lon: tacho.ubicacion_lon ? parseFloat(tacho.ubicacion_lon) : null,
         canton: tacho.canton || null,
-        nivel_llenado: parseInt(tacho.nivel_llenado) || 0,
+        estado: tacho.estado,
+        nivel_llenado: 0, // Siempre 0
+        tipo: tacho.tipo,
+        // Solo enviar propietario si es tipo personal
+        propietario: tacho.tipo === "personal" ? tacho.propietario : null,
+        // Solo enviar empresa_nombre si es tipo público
+        empresa_nombre: tacho.tipo === "publico" ? (tacho.empresa_nombre || "") : ""
       };
 
-      if (id) await api.put(`/tachos/${id}/`, dataToSend);
-      else await api.post("/tachos/", dataToSend);
+      console.log("Enviando datos:", dataToSend);
+
+      if (id) {
+        await api.put(`/tachos/${id}/`, dataToSend);
+      } else {
+        await api.post("/tachos/", dataToSend);
+      }
 
       navigate("/tachos");
-    } catch {
-      setError("No se pudo guardar el tacho");
+    } catch (err) {
+      console.error("Error guardando tacho:", err);
+
+      // Manejar error de código duplicado específicamente
+      if (err.response?.status === 400) {
+        const errorData = err.response.data;
+        if (errorData.codigo && errorData.codigo.includes("ya existe")) {
+          setError("El código ya está en uso. Por favor, use un código diferente.");
+        } else {
+          setError(errorData.message || "Error en los datos enviados. Verifique la información.");
+        }
+      } else {
+        setError("No se pudo guardar el tacho. Verifique su conexión.");
+      }
     } finally {
       setLoading(false);
     }
@@ -209,6 +352,7 @@ const TachoForm = () => {
     { value: "fuera_servicio", label: "Fuera de servicio", color: "#ff3b30" }
   ];
 
+  // ------------------ RENDER --------------------------------
   return (
     <div className="admin-page">
       <div className="page-header">
@@ -217,6 +361,9 @@ const TachoForm = () => {
             <Trash2 className="icon-lg" style={{ marginRight: "12px" }} />
             {id ? "Editar Tacho" : "Nuevo Tacho"}
           </h2>
+          <p className="page-header-subtitle">
+            {id ? "Modifique los datos del tacho" : "Registre un nuevo tacho en el sistema"}
+          </p>
         </div>
       </div>
 
@@ -230,19 +377,84 @@ const TachoForm = () => {
           )}
 
           <div className="form-grid">
-            {/* Código */}
+            {/* Código con validación de unicidad */}
             <div className="form-group">
               <label className="form-label">
                 <Tag className="icon-sm" /> Código
               </label>
-              <input
-                type="text"
-                name="codigo"
-                value={tacho.codigo}
-                onChange={handleChange}
-                className="form-input"
-                required
-              />
+              <div style={{ position: "relative" }}>
+                <input
+                  type="text"
+                  name="codigo"
+                  value={tacho.codigo}
+                  onChange={handleChange}
+                  className="form-input"
+                  placeholder="Ej: TAC-001"
+                  required
+                  style={{
+                    paddingRight: "40px",
+                    borderColor: codigoDisponible === true ? "#10b981" :
+                                codigoDisponible === false ? "#ef4444" : undefined
+                  }}
+                />
+                {verificandoCodigo && (
+                  <div style={{
+                    position: "absolute",
+                    right: "12px",
+                    top: "50%",
+                    transform: "translateY(-50%)"
+                  }}>
+                    <div className="spinner" style={{
+                      width: "16px",
+                      height: "16px",
+                      borderWidth: "2px"
+                    }}></div>
+                  </div>
+                )}
+                {codigoDisponible === true && !verificandoCodigo && (
+                  <CheckCircle
+                    className="icon-sm"
+                    style={{
+                      position: "absolute",
+                      right: "12px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "#10b981"
+                    }}
+                  />
+                )}
+                {codigoDisponible === false && !verificandoCodigo && (
+                  <XCircle
+                    className="icon-sm"
+                    style={{
+                      position: "absolute",
+                      right: "12px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "#ef4444"
+                    }}
+                  />
+                )}
+              </div>
+              {codigoDisponible !== null && !verificandoCodigo && (
+                <p style={{
+                  marginTop: "4px",
+                  fontSize: "0.75rem",
+                  color: codigoDisponible ? "#10b981" : "#ef4444",
+                  fontWeight: "500"
+                }}>
+                  {codigoDisponible
+                    ? "✓ Código disponible"
+                    : "✗ Este código ya está en uso"}
+                </p>
+              )}
+              <p style={{
+                marginTop: "4px",
+                fontSize: "0.75rem",
+                color: "#6b7280"
+              }}>
+                El código debe ser único en el sistema
+              </p>
             </div>
 
             {/* Nombre */}
@@ -256,8 +468,25 @@ const TachoForm = () => {
                 value={tacho.nombre}
                 onChange={handleChange}
                 className="form-input"
+                placeholder="Ej: Tacho Principal"
                 required
               />
+            </div>
+
+            {/* Tipo de Tacho */}
+            <div className="form-group">
+              <label className="form-label">
+                <Globe className="icon-sm" /> Tipo
+              </label>
+              <select
+                name="tipo"
+                value={tacho.tipo}
+                onChange={handleTipoChange}
+                className="form-input"
+              >
+                <option value="publico">Público / Empresa</option>
+                <option value="personal">Personal</option>
+              </select>
             </div>
 
             {/* Estado */}
@@ -279,45 +508,154 @@ const TachoForm = () => {
               </select>
             </div>
 
-            {/* Nivel de Llenado */}
+            {/* Nivel de Llenado (SOLO LECTURA) */}
             <div className="form-group">
               <label className="form-label">
-                <Battery className="icon-sm" /> Nivel de Llenado (%)
+                <Battery className="icon-sm" /> Nivel de Llenado
               </label>
-              <div className="input-with-slider">
-                <input
-                  type="range"
-                  name="nivel_llenado"
-                  min="0"
-                  max="100"
-                  value={tacho.nivel_llenado || 0}
-                  onChange={handleChange}
-                  className="form-range"
-                />
-                <div className="range-value">
-                  <input
-                    type="number"
-                    name="nivel_llenado"
-                    min="0"
-                    max="100"
-                    value={tacho.nivel_llenado || 0}
-                    onChange={handleChange}
-                    className="form-input small"
-                    style={{ width: "80px" }}
-                  />
-                  <span style={{ marginLeft: "8px" }}>%</span>
-                </div>
-              </div>
-
-              {/* Indicador visual */}
-              <div className="fill-level-indicator">
-                <div
-                  className="fill-level-bar"
-                  style={{ width: `${tacho.nivel_llenado || 0}%` }}
-                >
-                  <span className="fill-level-text">
-                    {tacho.nivel_llenado || 0}%
+              <div className="info-card" style={{ marginTop: "8px", padding: "12px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <Battery className="icon-sm" style={{ color: "#10b981" }} />
+                    <span style={{ fontWeight: "600" }}>0%</span>
+                  </div>
+                  <span style={{
+                    fontSize: "0.75rem",
+                    color: "#6b7280",
+                    backgroundColor: "#f3f4f6",
+                    padding: "4px 8px",
+                    borderRadius: "4px"
+                  }}>
+                    Fijado por sistema
                   </span>
+                </div>
+                <p style={{
+                  marginTop: "8px",
+                  fontSize: "0.75rem",
+                  color: "#6b7280",
+                  fontStyle: "italic"
+                }}>
+                  El nivel de llenado se actualiza automáticamente mediante las detecciones de IA
+                </p>
+              </div>
+            </div>
+
+            {/* Asociación de Usuario */}
+            <div className="form-group">
+              <label className="form-label">
+                <User className="icon-sm" /> Asociar a Usuario
+              </label>
+              <div className="select-wrapper" style={{ position: "relative" }}>
+                <select
+                  name="propietario"
+                  value={tacho.propietario || ""}
+                  onChange={handlePropietarioChange}
+                  className="form-input"
+                  disabled={tacho.tipo === "publico"}
+                >
+                  <option value="">-- Sin usuario asociado --</option>
+                  {loadingUsuarios ? (
+                    <option value="" disabled>Cargando usuarios...</option>
+                  ) : (
+                    usuarios.map(usuario => (
+                      <option key={usuario.id} value={usuario.id}>
+                        {usuario.nombre} ({usuario.email})
+                      </option>
+                    ))
+                  )}
+                </select>
+                <ChevronDown
+                  className="icon-sm"
+                  style={{
+                    position: "absolute",
+                    right: "12px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    pointerEvents: "none",
+                    color: "#6b7280"
+                  }}
+                />
+              </div>
+              {tacho.tipo === "publico" && (
+                <p style={{
+                  marginTop: "4px",
+                  fontSize: "0.75rem",
+                  color: "#f59e0b",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px"
+                }}>
+                  <EyeOff className="icon-xs" />
+                  Los tachos públicos no pueden asociarse a usuarios personales
+                </p>
+              )}
+            </div>
+
+            {/* Nombre de Empresa/Institución (visible por defecto para tachos públicos) */}
+            {tacho.tipo === "publico" && (
+              <div className="form-group">
+                <label className="form-label">
+                  <Building className="icon-sm" /> Empresa / Institución
+                </label>
+                <input
+                  type="text"
+                  name="empresa_nombre"
+                  value={tacho.empresa_nombre}
+                  onChange={handleChange}
+                  className="form-input"
+                  placeholder="Ej: Municipio de Cuenca, Universidad XYZ..."
+                  required={!tacho.propietario} // Requerido solo si no hay usuario asociado
+                />
+                <p style={{
+                  marginTop: "4px",
+                  fontSize: "0.75rem",
+                  color: "#6b7280"
+                }}>
+                  {tacho.propietario
+                    ? "Este campo se desactivará al seleccionar un usuario"
+                    : "Ingrese el nombre de la empresa o institución responsable"}
+                </p>
+              </div>
+            )}
+
+            {/* Información de Propiedad */}
+            <div className="form-group form-grid-full">
+              <div className="info-card" style={{
+                backgroundColor: tacho.tipo === "personal" ? "rgba(59, 130, 246, 0.05)" : "rgba(16, 185, 129, 0.05)",
+                borderLeft: `4px solid ${tacho.tipo === "personal" ? "#3b82f6" : "#10b981"}`
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <div style={{
+                    width: "36px",
+                    height: "36px",
+                    borderRadius: "50%",
+                    backgroundColor: tacho.tipo === "personal" ? "#3b82f6" : "#10b981",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center"
+                  }}>
+                    {tacho.tipo === "personal" ?
+                      <User className="icon-sm" style={{ color: "white" }} /> :
+                      <Building className="icon-sm" style={{ color: "white" }} />
+                    }
+                  </div>
+                  <div>
+                    <h4 style={{ margin: "0 0 4px 0", fontSize: "0.875rem", fontWeight: "600" }}>
+                      {tacho.tipo === "personal" ? "Tacho Personal" : "Tacho Público"}
+                    </h4>
+                    <p style={{ margin: "0", fontSize: "0.8125rem", color: "#6b7280" }}>
+                      {tacho.tipo === "personal"
+                        ? (tacho.propietario
+                            ? `Asociado a usuario ID: ${tacho.propietario}`
+                            : "No asociado a ningún usuario")
+                        : (tacho.propietario
+                            ? `Asociado a usuario ID: ${tacho.propietario} (para gestión)`
+                            : (tacho.empresa_nombre
+                                ? `Empresa: ${tacho.empresa_nombre}`
+                                : "Público general - ingrese nombre de empresa"))
+                      }
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -333,8 +671,31 @@ const TachoForm = () => {
                 onChange={handleChange}
                 className="form-textarea"
                 placeholder="Descripción o referencia del lugar..."
+                rows="3"
               />
             </div>
+
+            {/* Cantón */}
+            {cantones.length > 0 && (
+              <div className="form-group">
+                <label className="form-label">
+                  <MapPin className="icon-sm" /> Cantón
+                </label>
+                <select
+                  name="canton"
+                  value={tacho.canton}
+                  onChange={handleChange}
+                  className="form-input"
+                >
+                  <option value="">-- Seleccionar cantón --</option>
+                  {cantones.map(canton => (
+                    <option key={canton.id} value={canton.nombre}>
+                      {canton.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Lat/Lon */}
             <div className="form-group">
@@ -343,9 +704,10 @@ const TachoForm = () => {
               </label>
               <input
                 type="text"
-                value={tacho.ubicacion_lat}
+                value={tacho.ubicacion_lat || "No seleccionada"}
                 readOnly
                 className="form-input"
+                style={{ backgroundColor: "#f9fafb", cursor: "not-allowed" }}
               />
             </div>
 
@@ -355,48 +717,143 @@ const TachoForm = () => {
               </label>
               <input
                 type="text"
-                value={tacho.ubicacion_lon}
+                value={tacho.ubicacion_lon || "No seleccionada"}
                 readOnly
                 className="form-input"
+                style={{ backgroundColor: "#f9fafb", cursor: "not-allowed" }}
               />
             </div>
           </div>
 
           {/* MAPA */}
-          <div className="form-group form-grid-full" style={{ height: "420px", marginTop: "20px" }}>
-            <MapContainer
-              center={initialPosition}
-              zoom={15}
-              style={{
-                height: "100%",
-                borderRadius: "12px",
-                filter: "brightness(1.03)",
-              }}
-            >
-              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          <div className="form-group form-grid-full" style={{ marginTop: "20px" }}>
+            <div style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+              <MapPin className="icon-sm" style={{ color: "#10b981" }} />
+              <span style={{ fontWeight: "600", fontSize: "0.875rem" }}>Ubicación del Tacho</span>
+            </div>
+            <div style={{
+              backgroundColor: "#f9fafb",
+              padding: "12px",
+              borderRadius: "8px",
+              marginBottom: "12px"
+            }}>
+              <p style={{
+                margin: "0 0 8px 0",
+                fontSize: "0.8125rem",
+                color: "#6b7280",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px"
+              }}>
+                <AlertCircle className="icon-xs" />
+                Haga clic en el mapa para establecer la ubicación del tacho
+              </p>
+              <p style={{ margin: "0", fontSize: "0.75rem", color: "#9ca3af" }}>
+                Coordenadas seleccionadas: {tacho.ubicacion_lat || "-"}, {tacho.ubicacion_lon || "-"}
+              </p>
+            </div>
+            <div style={{ height: "380px", borderRadius: "12px", overflow: "hidden" }}>
+              <MapContainer
+                center={initialPosition}
+                zoom={15}
+                style={{ height: "100%", width: "100%" }}
+              >
+                <TileLayer
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                />
 
-              <LocationSelector />
+                <LocationSelector />
+                <RecenterMap lat={lat} lon={lon} />
 
-              {/* Recargar mapa cuando cambian coordenadas */}
-              <RecenterMap lat={lat} lon={lon} />
+                {lat && lon && (
+                  <Marker position={[lat, lon]} icon={markerIcon}>
+                    <Popup>
+                      <strong>{tacho.nombre || "Nuevo Tacho"}</strong>
+                      <br />
+                      {tacho.codigo && `Código: ${tacho.codigo}`}
+                      <br />
+                      <small>{lat.toFixed(6)}, {lon.toFixed(6)}</small>
+                    </Popup>
+                  </Marker>
+                )}
+              </MapContainer>
+            </div>
+          </div>
 
-              {lat && lon && (
-                <Marker position={[lat, lon]} icon={markerIcon}>
-                  <Popup>
-                    <strong>{tacho.nombre || "Tacho seleccionado"}</strong>
-                  </Popup>
-                </Marker>
-              )}
-            </MapContainer>
+          {/* Resumen del Tacho */}
+          <div className="form-group form-grid-full" style={{ marginTop: "24px" }}>
+            <div className="info-card">
+              <div className="info-card-icon">
+                <Trash2 className="icon-lg" />
+              </div>
+              <div className="info-card-content">
+                <h4>Resumen del Tacho</h4>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", marginTop: "8px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ fontSize: "0.8125rem", color: "#6b7280" }}>Tipo:</span>
+                    <span style={{ fontWeight: "600", color: tacho.tipo === "personal" ? "#3b82f6" : "#10b981" }}>
+                      {tacho.tipo === "personal" ? "Personal" : "Público"}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ fontSize: "0.8125rem", color: "#6b7280" }}>Propiedad:</span>
+                    <span style={{ fontWeight: "600" }}>
+                      {tacho.propietario
+                        ? `Usuario ID: ${tacho.propietario}`
+                        : tacho.empresa_nombre
+                          ? tacho.empresa_nombre
+                          : "Público (pendiente empresa)"
+                      }
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ fontSize: "0.8125rem", color: "#6b7280" }}>Nivel:</span>
+                    <span style={{ fontWeight: "600", color: "#10b981" }}>0% (automático)</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ fontSize: "0.8125rem", color: "#6b7280" }}>Código:</span>
+                    <span style={{
+                      fontWeight: "600",
+                      color: codigoDisponible === false ? "#ef4444" : "#10b981"
+                    }}>
+                      {codigoDisponible === false ? "✗ Duplicado" : tacho.codigo || "No definido"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* BOTONES */}
-          <div className="form-actions">
+          <div className="form-actions" style={{ marginTop: "24px" }}>
             <Link to="/tachos" className="btn btn-secondary">
               <X className="icon-md" /> Cancelar
             </Link>
-            <button type="submit" className="btn btn-primary" disabled={loading}>
-              <Save className="icon-md" /> {loading ? "Guardando..." : "Guardar"}
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={loading || codigoDisponible === false}
+              style={{
+                minWidth: "120px",
+                opacity: codigoDisponible === false ? 0.6 : 1
+              }}
+            >
+              {loading ? (
+                <>
+                  <div className="spinner" style={{
+                    width: "16px",
+                    height: "16px",
+                    borderWidth: "2px",
+                    marginRight: "8px"
+                  }}></div>
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <Save className="icon-md" /> {id ? "Actualizar" : "Crear"} Tacho
+                </>
+              )}
             </button>
           </div>
         </form>
