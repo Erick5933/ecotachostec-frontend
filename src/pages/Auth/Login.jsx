@@ -2,17 +2,24 @@
 import { useState, useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../../context/AuthContext";
-import { login } from "../../api/authApi";
+import { login, googleLogin } from "../../api/authApi";
 import "./auth.css";
+
+// Firebase imports
+import { signInWithPopup } from "firebase/auth";
+import { auth, googleProvider } from "../../firebaseConfig";
 
 export default function Login() {
   const navigate = useNavigate();
   const { loginUser } = useContext(AuthContext);
+
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
+
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
@@ -21,7 +28,7 @@ export default function Login() {
       ...formData,
       [e.target.name]: e.target.value,
     });
-    setError(""); // Limpiar error al escribir
+    setError("");
   };
 
   const handleSubmit = async (e) => {
@@ -32,9 +39,9 @@ export default function Login() {
     try {
       const response = await login(formData);
       const { token, user } = response.data;
-      
+
       loginUser(user, token);
-      
+
       // Redirigir según el rol
       if (user.rol === "admin") {
         navigate("/");
@@ -44,11 +51,50 @@ export default function Login() {
     } catch (err) {
       console.error("Error al iniciar sesión", err);
       setError(
-        err.response?.data?.message || 
+        err.response?.data?.message ||
         "Credenciales incorrectas. Por favor, intenta nuevamente."
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  // --- LÓGICA DE GOOGLE ---
+  const handleGoogleSignIn = async () => {
+    setError("");
+    setGoogleLoading(true);
+
+    try {
+      // 1. Abrir popup de Google
+      const result = await signInWithPopup(auth, googleProvider);
+
+      // 2. Obtener el token de Google
+      const tokenGoogle = await result.user.getIdToken();
+
+      // 3. Enviarlo a tu Backend
+      const response = await googleLogin(tokenGoogle);
+
+      // 4. Loguear en el contexto
+      const { token, user } = response.data;
+      loginUser(user, token);
+
+      // 5. Redirigir
+      if (user.rol === "admin") {
+        navigate("/");
+      } else {
+        navigate("/portal");
+      }
+
+    } catch (err) {
+      console.error("Error en inicio con Google:", err);
+
+      if (err.code === 'auth/popup-closed-by-user') {
+        setError("El inicio de sesión fue cancelado.");
+      } else {
+        setError("Error al conectar con Google.");
+      }
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -141,7 +187,7 @@ export default function Login() {
             <button
               type="submit"
               className="btn btn-primary btn-block"
-              disabled={loading}
+              disabled={loading || googleLoading}
             >
               {loading ? (
                 <>
@@ -152,6 +198,33 @@ export default function Login() {
                 "Iniciar Sesión"
               )}
             </button>
+
+            {/* --- BOTÓN DE GOOGLE MEJORADO --- */}
+            <button
+              type="button"
+              className="btn btn-google btn-block"
+              onClick={handleGoogleSignIn}
+              disabled={loading || googleLoading}
+              style={{ marginTop: '15px' }} // El resto del estilo está en .btn-google (auth.css)
+            >
+              {googleLoading ? (
+                 <>
+                   <span className="spinner spinner-sm" style={{borderTopColor: '#757575', borderRightColor: '#757575'}}></span>
+                   Conectando...
+                 </>
+              ) : (
+                <>
+                  <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fillRule="evenodd" fillOpacity="1" fill="#4285f4" stroke="none"></path>
+                    <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.715H.957v2.332A8.997 8.997 0 0 0 9 18z" fillRule="evenodd" fillOpacity="1" fill="#34a853" stroke="none"></path>
+                    <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fillRule="evenodd" fillOpacity="1" fill="#fbbc05" stroke="none"></path>
+                    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fillRule="evenodd" fillOpacity="1" fill="#ea4335" stroke="none"></path>
+                  </svg>
+                  Iniciar sesión con Google
+                </>
+              )}
+            </button>
+
           </form>
 
           <div className="auth-divider">
@@ -167,7 +240,6 @@ export default function Login() {
             </p>
           </div>
         </div>
-
       </div>
     </div>
   );

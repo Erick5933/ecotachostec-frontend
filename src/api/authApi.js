@@ -2,11 +2,18 @@
 import axios from "./axiosConfig";
 
 export const login = (credentials) => axios.post("/usuarios/auth/login/", credentials);
-
 export const register = (userData) => axios.post("/usuarios/auth/register/", userData);
-
 export const getProfile = () => axios.get("/usuarios/auth/profile/");
+export const updateProfile = (data) => axios.put("/usuarios/auth/profile/", data); // Ojo con la ruta base
+export const logout = () => axios.post("/usuarios/auth/logout/");
 
-export const updateProfile = (data) => axios.put("/auth/profile/", data);
+// --- NUEVAS FUNCIONES ---
 
-export const logout = () => axios.post("/auth/logout/");
+// Enviar el token de Google al backend
+export const googleLogin = (token) => axios.post("/usuarios/auth/google/", { token });
+
+// Solicitar el correo de recuperación
+export const requestPasswordReset = (email) => axios.post("/usuarios/auth/request-reset-email/", { email });
+
+// Enviar la nueva contraseña con el token
+export const resetPasswordConfirm = (data) => axios.patch("/usuarios/auth/password-reset-complete/", data);

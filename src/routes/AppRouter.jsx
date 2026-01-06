@@ -1,4 +1,4 @@
-// src/routes/AppRouter.jsx
+// src/routes/AppRouter.jsx - VERSIÓN COMPLETA
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
@@ -19,13 +19,15 @@ import TachoDetail from "../pages/Tachos/TachoDetail";
 import DeteccionList from "../pages/Detecciones/DeteccionList";
 import DeteccionDetail from "../pages/Detecciones/DeteccionDetail";
 
-// NEW: Perfil
+// Auth & Profile Pages
 import Profile from "../pages/Auth/Profile";
+import Login from "../pages/Auth/Login";
+import Register from "../pages/Auth/Register";
+import ForgotPassword from "../pages/Auth/ForgotPassword";
+import ResetPassword from "../pages/Auth/ResetPassword";
 
 // User Pages
 import LandingPage from "../pages/User/LandingPage";
-import Login from "../pages/Auth/Login";
-import Register from "../pages/Auth/Register";
 import UserPortal from "../pages/User/UserPortal";
 
 // ========================
@@ -57,6 +59,17 @@ function PublicRoute({ children }) {
 }
 
 // ========================
+// UNAUTHENTICATED ROUTES (sin redirección automática)
+// ========================
+function UnauthenticatedRoute({ children }) {
+  const { user } = useContext(AuthContext);
+
+  // Estas rutas son accesibles tanto para usuarios autenticados como no autenticados
+  // No redirigimos automáticamente
+  return children;
+}
+
+// ========================
 // APP ROUTER PRINCIPAL
 // ========================
 export default function AppRouter() {
@@ -72,6 +85,7 @@ export default function AppRouter() {
         <Route element={<UserLayout />}>
           <Route path="/home" element={<LandingPage />} />
 
+          {/* Login - Solo para no autenticados */}
           <Route
             path="/login"
             element={
@@ -81,6 +95,7 @@ export default function AppRouter() {
             }
           />
 
+          {/* Register - Solo para no autenticados */}
           <Route
             path="/register"
             element={
@@ -90,6 +105,27 @@ export default function AppRouter() {
             }
           />
 
+          {/* Forgot Password - Accesible siempre */}
+          <Route
+            path="/forgot-password"
+            element={
+              <UnauthenticatedRoute>
+                <ForgotPassword />
+              </UnauthenticatedRoute>
+            }
+          />
+
+          {/* Reset Password - Accesible siempre */}
+          <Route
+            path="/reset-password/:uid/:token"
+            element={
+              <UnauthenticatedRoute>
+                <ResetPassword />
+              </UnauthenticatedRoute>
+            }
+          />
+
+          {/* User Portal - Solo para usuarios autenticados no-admin */}
           <Route
             path="/portal"
             element={
@@ -113,7 +149,7 @@ export default function AppRouter() {
           {/* Dashboard */}
           <Route path="/" element={<Dashboard />} />
 
-          {/* PERFIL (Nueva ruta) */}
+          {/* Perfil */}
           <Route path="/perfil" element={<Profile />} />
 
           {/* Usuarios */}
