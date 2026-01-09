@@ -786,3 +786,76 @@ body {
 .data-table-wrapper::-webkit-scrollbar-thumb:hover {
   background: var(--color-primary-dark);
 }
+
+/* Estilos para la sección de administradores */
+.select-arrow {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #6b7280;
+}
+
+.users-list {
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.user-chip {
+  transition: all 0.2s ease;
+}
+
+.user-chip:hover {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.btn-icon:hover {
+  background-color: #f1f5f9;
+}
+
+.btn-outline {
+  background: white;
+  border: 1px solid #d1d5db;
+  color: #374151;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-outline:hover:not(:disabled) {
+  background-color: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.btn-outline:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.form-help-text {
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}

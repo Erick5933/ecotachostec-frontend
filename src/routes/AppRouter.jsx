@@ -29,6 +29,7 @@ import ResetPassword from "../pages/Auth/ResetPassword";
 // User Pages
 import LandingPage from "../pages/User/LandingPage";
 import UserPortal from "../pages/User/UserPortal";
+import TachoDetailUser from "../pages/User/TachoDetailUser"; // Asegúrate de importar el componente
 
 // ========================
 // PROTECTED ROUTES
@@ -131,6 +132,16 @@ export default function AppRouter() {
             element={
               <ProtectedRoute>
                 <UserPortal />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Detalle de Tacho para Usuarios - Solo para usuarios autenticados no-admin */}
+          <Route
+            path="/tachos/:id"
+            element={
+              <ProtectedRoute>
+                <TachoDetailUser />
               </ProtectedRoute>
             }
           />

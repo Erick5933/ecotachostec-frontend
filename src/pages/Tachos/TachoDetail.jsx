@@ -20,7 +20,9 @@ import {
   Clock,
   FileText,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  User,
+  Building
 } from "lucide-react";
 import api from "../../api/axiosConfig";
 import "./tachoDetail.css";
@@ -55,15 +57,41 @@ const tachoIcon = new L.DivIcon({
 const TachoDetail = () => {
   const { id } = useParams();
   const [tacho, setTacho] = useState(null);
+  const [usuarioEncargado, setUsuarioEncargado] = useState(null);
+  const [loadingUsuario, setLoadingUsuario] = useState(false);
   const [detecciones, setDetecciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingDetecciones, setLoadingDetecciones] = useState(false);
   const [error, setError] = useState(null);
 
+  // Cargar información del usuario encargado
+  const loadUsuarioEncargado = async (usuarioId) => {
+    if (!usuarioId) {
+      setUsuarioEncargado(null);
+      return;
+    }
+
+    setLoadingUsuario(true);
+    try {
+      const res = await api.get(`/usuarios/${usuarioId}/`);
+      setUsuarioEncargado(res.data);
+    } catch (e) {
+      console.error("Error cargando usuario encargado", e);
+    } finally {
+      setLoadingUsuario(false);
+    }
+  };
+
   const loadTacho = async () => {
     try {
       const res = await api.get(`/tachos/${id}/`);
-      setTacho(res.data);
+      const tachoData = res.data;
+      setTacho(tachoData);
+
+      // Cargar información del usuario encargado si existe
+      if (tachoData.propietario) {
+        await loadUsuarioEncargado(tachoData.propietario);
+      }
     } catch (e) {
       console.error("Error cargando tacho", e);
       setError("No se pudo cargar la información del tacho");
@@ -355,6 +383,64 @@ const TachoDetail = () => {
                   <span className="info-value">{tacho.canton_nombre}</span>
                 </div>
               )}
+
+              {/* Tipo de Tacho */}
+              <div className="info-item">
+                <span className="info-label">
+                  <Activity className="info-label-icon" />
+                  Tipo
+                </span>
+                <span className="info-value">
+                  <span className={`badge ${tacho.tipo === 'personal' ? 'badge-info' : 'badge-warning'}`}>
+                    {tacho.tipo === 'personal' ? 'Personal' : 'Público / Empresa'}
+                  </span>
+                </span>
+              </div>
+
+              {/* Información de Empresa (solo para tachos públicos) */}
+              {tacho.tipo === 'publico' && tacho.empresa_nombre && (
+                <div className="info-item">
+                  <span className="info-label">
+                    <Building className="info-label-icon" />
+                    Empresa
+                  </span>
+                  <span className="info-value">{tacho.empresa_nombre}</span>
+                </div>
+              )}
+
+              {/* Usuario Encargado */}
+              <div className="info-item">
+                <span className="info-label">
+                  <User className="info-label-icon" />
+                  Usuario Encargado
+                </span>
+                <div className="info-value">
+                  {loadingUsuario ? (
+                    <div className="spinner spinner-xs"></div>
+                  ) : usuarioEncargado ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <div style={{
+                        width: "24px",
+                        height: "24px",
+                        borderRadius: "50%",
+                        backgroundColor: "#3b82f6",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center"
+                      }}>
+                        <User className="icon-xs" style={{ color: "white" }} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: "500" }}>{usuarioEncargado.nombre}</div>
+                        <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>{usuarioEncargado.email}</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <span style={{ color: "#9ca3af", fontStyle: "italic" }}>No asignado</span>
+                  )}
+                </div>
+              </div>
+
               {tacho.ultima_deteccion && (
                 <div className="info-item">
                   <span className="info-label">
@@ -379,6 +465,47 @@ const TachoDetail = () => {
                 </div>
               </div>
             )}
+
+            {/* Resumen de Propiedad */}
+            <div style={{
+              marginTop: "1.5rem",
+              padding: "1rem",
+              backgroundColor: "#f9fafb",
+              borderRadius: "0.5rem",
+              borderLeft: `4px solid ${tacho.tipo === 'personal' ? "#3b82f6" : "#10b981"}`
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.5rem" }}>
+                <div style={{
+                  width: "32px",
+                  height: "32px",
+                  borderRadius: "50%",
+                  backgroundColor: tacho.tipo === 'personal' ? "#3b82f6" : "#10b981",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}>
+                  {tacho.tipo === 'personal' ?
+                    <User className="icon-xs" style={{ color: "white" }} /> :
+                    <Building className="icon-xs" style={{ color: "white" }} />
+                  }
+                </div>
+                <div>
+                  <div style={{ fontWeight: "600", fontSize: "0.875rem" }}>
+                    {tacho.tipo === 'personal' ? 'Tacho Personal' : 'Tacho Público'}
+                  </div>
+                  <div style={{ fontSize: "0.8125rem", color: "#6b7280" }}>
+                    {tacho.tipo === 'personal'
+                      ? (usuarioEncargado
+                          ? `Pertenece a: ${usuarioEncargado.nombre}`
+                          : 'Sin usuario asignado')
+                      : (tacho.empresa_nombre
+                          ? `Empresa: ${tacho.empresa_nombre} ${usuarioEncargado ? `(Encargado: ${usuarioEncargado.nombre})` : ''}`
+                          : 'Empresa no definida')
+                    }
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -405,6 +532,12 @@ const TachoDetail = () => {
                   <Marker position={[lat, lon]} icon={tachoIcon}>
                     <Popup>
                       <strong>{tacho.nombre}</strong> <br />
+                      {tacho.tipo === 'publico' && tacho.empresa_nombre && (
+                        <>Empresa: {tacho.empresa_nombre}<br /></>
+                      )}
+                      {usuarioEncargado && (
+                        <>Encargado: {usuarioEncargado.nombre}<br /></>
+                      )}
                       {lat.toFixed(6)}, {lon.toFixed(6)} <br />
                       <small>Estado: {getEstadoText(tacho.estado)}</small>
                     </Popup>

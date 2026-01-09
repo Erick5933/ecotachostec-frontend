@@ -41,8 +41,8 @@ const TachoForm = () => {
     estado: "activo",
     nivel_llenado: 0, // Siempre 0
     tipo: "publico", // publico o personal
-    propietario: null, // ID del usuario
-    empresa_nombre: "", // Nombre de la empresa (si no hay usuario)
+    propietario: null, // ID del usuario encargado (para ambos tipos)
+    empresa_nombre: "", // Nombre de la empresa (si es tipo público)
   });
 
   const [cantones, setCantones] = useState([]);
@@ -174,11 +174,6 @@ const TachoForm = () => {
       const res = await api.get(`/tachos/${id}/`);
       const tachoData = res.data;
 
-      // Mostrar input de empresa si es público sin usuario o si tiene empresa_nombre
-      const mostrarEmpresaInput =
-        (tachoData.tipo === "publico" && !tachoData.propietario) ||
-        (tachoData.empresa_nombre && tachoData.empresa_nombre.trim() !== "");
-
       setTacho({
         codigo: tachoData.codigo || "",
         nombre: tachoData.nombre || "",
@@ -187,7 +182,7 @@ const TachoForm = () => {
         ubicacion_lon: tachoData.ubicacion_lon || "",
         canton: tachoData.canton || "",
         estado: tachoData.estado || "activo",
-        nivel_llenado: 0, // Siempre 0, no se puede modificar
+        nivel_llenado: 0,
         tipo: tachoData.tipo || "publico",
         propietario: tachoData.propietario || null,
         empresa_nombre: tachoData.empresa_nombre || "",
@@ -238,10 +233,10 @@ const TachoForm = () => {
     setTacho(prev => ({
       ...prev,
       tipo,
-      // Si cambia a personal, limpiar empresa_nombre
-      empresa_nombre: tipo === "publico" ? prev.empresa_nombre : "",
-      // Si cambia a público, limpiar propietario
-      propietario: tipo === "publico" ? null : prev.propietario
+      // Limpiar empresa_nombre solo si cambia a personal
+      empresa_nombre: tipo === "personal" ? "" : prev.empresa_nombre,
+      // Mantener propietario para ambos tipos
+      propietario: prev.propietario
     }));
   };
 
@@ -251,9 +246,7 @@ const TachoForm = () => {
 
     setTacho(prev => ({
       ...prev,
-      propietario: propietarioId,
-      // Si selecciona un usuario, limpiar empresa_nombre
-      empresa_nombre: propietarioId ? "" : prev.empresa_nombre
+      propietario: propietarioId
     }));
   };
 
@@ -270,9 +263,9 @@ const TachoForm = () => {
       return false;
     }
 
-    // Validar que si es público sin usuario, tenga nombre de empresa
-    if (tacho.tipo === "publico" && !tacho.propietario && !tacho.empresa_nombre.trim()) {
-      setError("Para tachos públicos sin usuario asociado, debe ingresar el nombre de la empresa/institución");
+    // Validar que si es tipo público, tenga empresa_nombre
+    if (tacho.tipo === "publico" && !tacho.empresa_nombre.trim()) {
+      setError("Para tachos públicos, debe ingresar el nombre de la empresa/institución");
       return false;
     }
 
@@ -301,11 +294,11 @@ const TachoForm = () => {
         ubicacion_lon: tacho.ubicacion_lon ? parseFloat(tacho.ubicacion_lon) : null,
         canton: tacho.canton || null,
         estado: tacho.estado,
-        nivel_llenado: 0, // Siempre 0
+        nivel_llenado: 0,
         tipo: tacho.tipo,
-        // Solo enviar propietario si es tipo personal
-        propietario: tacho.tipo === "personal" ? tacho.propietario : null,
-        // Solo enviar empresa_nombre si es tipo público
+        // Enviar propietario para ambos tipos (puede ser null)
+        propietario: tacho.propietario,
+        // Enviar empresa_nombre solo si es tipo público
         empresa_nombre: tacho.tipo === "publico" ? (tacho.empresa_nombre || "") : ""
       };
 
@@ -540,10 +533,35 @@ const TachoForm = () => {
               </div>
             </div>
 
-            {/* Asociación de Usuario */}
+            {/* Nombre de Empresa/Institución (solo para tachos públicos) */}
+            {tacho.tipo === "publico" && (
+              <div className="form-group">
+                <label className="form-label">
+                  <Building className="icon-sm" /> Empresa / Institución
+                </label>
+                <input
+                  type="text"
+                  name="empresa_nombre"
+                  value={tacho.empresa_nombre}
+                  onChange={handleChange}
+                  className="form-input"
+                  placeholder="Ej: Municipio de Cuenca, Universidad XYZ..."
+                  required
+                />
+                <p style={{
+                  marginTop: "4px",
+                  fontSize: "0.75rem",
+                  color: "#6b7280"
+                }}>
+                  Ingrese el nombre de la empresa o institución responsable
+                </p>
+              </div>
+            )}
+
+            {/* Usuario Encargado (para ambos tipos) */}
             <div className="form-group">
               <label className="form-label">
-                <User className="icon-sm" /> Asociar a Usuario
+                <User className="icon-sm" /> Usuario Encargado
               </label>
               <div className="select-wrapper" style={{ position: "relative" }}>
                 <select
@@ -551,9 +569,8 @@ const TachoForm = () => {
                   value={tacho.propietario || ""}
                   onChange={handlePropietarioChange}
                   className="form-input"
-                  disabled={tacho.tipo === "publico"}
                 >
-                  <option value="">-- Sin usuario asociado --</option>
+                  <option value="">-- Sin usuario encargado --</option>
                   {loadingUsuarios ? (
                     <option value="" disabled>Cargando usuarios...</option>
                   ) : (
@@ -576,47 +593,16 @@ const TachoForm = () => {
                   }}
                 />
               </div>
-              {tacho.tipo === "publico" && (
-                <p style={{
-                  marginTop: "4px",
-                  fontSize: "0.75rem",
-                  color: "#f59e0b",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px"
-                }}>
-                  <EyeOff className="icon-xs" />
-                  Los tachos públicos no pueden asociarse a usuarios personales
-                </p>
-              )}
+              <p style={{
+                marginTop: "4px",
+                fontSize: "0.75rem",
+                color: "#6b7280"
+              }}>
+                {tacho.tipo === "publico"
+                  ? "Opcional: usuario responsable de gestionar este tacho"
+                  : "Usuario al que pertenece este tacho personal"}
+              </p>
             </div>
-
-            {/* Nombre de Empresa/Institución (visible por defecto para tachos públicos) */}
-            {tacho.tipo === "publico" && (
-              <div className="form-group">
-                <label className="form-label">
-                  <Building className="icon-sm" /> Empresa / Institución
-                </label>
-                <input
-                  type="text"
-                  name="empresa_nombre"
-                  value={tacho.empresa_nombre}
-                  onChange={handleChange}
-                  className="form-input"
-                  placeholder="Ej: Municipio de Cuenca, Universidad XYZ..."
-                  required={!tacho.propietario} // Requerido solo si no hay usuario asociado
-                />
-                <p style={{
-                  marginTop: "4px",
-                  fontSize: "0.75rem",
-                  color: "#6b7280"
-                }}>
-                  {tacho.propietario
-                    ? "Este campo se desactivará al seleccionar un usuario"
-                    : "Ingrese el nombre de la empresa o institución responsable"}
-                </p>
-              </div>
-            )}
 
             {/* Información de Propiedad */}
             <div className="form-group form-grid-full">
@@ -641,18 +627,16 @@ const TachoForm = () => {
                   </div>
                   <div>
                     <h4 style={{ margin: "0 0 4px 0", fontSize: "0.875rem", fontWeight: "600" }}>
-                      {tacho.tipo === "personal" ? "Tacho Personal" : "Tacho Público"}
+                      {tacho.tipo === "personal" ? "Tacho Personal" : "Tacho Público / Empresa"}
                     </h4>
                     <p style={{ margin: "0", fontSize: "0.8125rem", color: "#6b7280" }}>
                       {tacho.tipo === "personal"
                         ? (tacho.propietario
-                            ? `Asociado a usuario ID: ${tacho.propietario}`
-                            : "No asociado a ningún usuario")
-                        : (tacho.propietario
-                            ? `Asociado a usuario ID: ${tacho.propietario} (para gestión)`
-                            : (tacho.empresa_nombre
-                                ? `Empresa: ${tacho.empresa_nombre}`
-                                : "Público general - ingrese nombre de empresa"))
+                            ? `Usuario: ID ${tacho.propietario}`
+                            : "Tacho personal sin usuario asignado")
+                        : (tacho.empresa_nombre
+                            ? `Empresa: ${tacho.empresa_nombre} ${tacho.propietario ? `(Usuario encargado: ID ${tacho.propietario})` : ""}`
+                            : "Empresa no definida")
                       }
                     </p>
                   </div>
@@ -797,14 +781,19 @@ const TachoForm = () => {
                     </span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span style={{ fontSize: "0.8125rem", color: "#6b7280" }}>Propiedad:</span>
+                    <span style={{ fontSize: "0.8125rem", color: "#6b7280" }}>Empresa:</span>
+                    <span style={{ fontWeight: "600" }}>
+                      {tacho.tipo === "publico"
+                        ? (tacho.empresa_nombre || "No definida")
+                        : "No aplica"}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ fontSize: "0.8125rem", color: "#6b7280" }}>Usuario encargado:</span>
                     <span style={{ fontWeight: "600" }}>
                       {tacho.propietario
-                        ? `Usuario ID: ${tacho.propietario}`
-                        : tacho.empresa_nombre
-                          ? tacho.empresa_nombre
-                          : "Público (pendiente empresa)"
-                      }
+                        ? `ID: ${tacho.propietario}`
+                        : "No asignado"}
                     </span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
