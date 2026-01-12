@@ -14,7 +14,7 @@ import {
   ArrowRight, RefreshCw, Download, Search,
   Target, Award, Sparkles, Radio, Camera, Upload, X, Scan, CheckCircle2,
   Image as ImageIcon, Building, Users, Globe, Target as TargetIcon,
-  Navigation, Bell, Mail, Phone, Map
+  Navigation, Bell, Mail, Phone, Map, Leaf, Recycle, Ban, Hash
 } from "lucide-react";
 import "./userPortal.css";
 
@@ -171,83 +171,91 @@ export default function UserPortal() {
     return R * c;
   };
 
-  const loadPortalData = async () => {
-    try {
-      const [tachosRes, deteccionesRes] = await Promise.all([
-        api.get("/tachos/"),
-        api.get("/detecciones/"),
-      ]);
+    // CORREGIR en la función loadPortalData() - reemplazar esta sección:
+    const loadPortalData = async () => {
+      try {
+        const [tachosRes, deteccionesRes] = await Promise.all([
+          api.get("/tachos/"),
+          api.get("/detecciones/"),
+        ]);
 
-      const tachosData = tachosRes.data.results || tachosRes.data || [];
-      const deteccionesData = deteccionesRes.data.results || deteccionesRes.data || [];
+        const tachosData = tachosRes.data.results || tachosRes.data || [];
+        const deteccionesData = deteccionesRes.data.results || deteccionesRes.data || [];
 
-      // Filtrar mis tachos (donde el usuario es propietario)
-      const userTachos = tachosData.filter(tacho => tacho.propietario === user?.id);
+        // Filtrar mis tachos (donde el usuario es propietario)
+        const userTachos = tachosData.filter(tacho => tacho.propietario === user?.id);
 
-      // Encontrar tachos de empresas donde el usuario es encargado
-      const tachosConUsuarioEncargado = tachosData.filter(tacho =>
-        tacho.propietario === user?.id && tacho.tipo === "publico"
-      );
+        // Filtrar tachos personales (tipo "personal") del usuario
+        const tachosPersonales = userTachos.filter(tacho => tacho.tipo === "personal");
 
-      // Obtener empresas únicas donde el usuario es encargado
-      const empresas = [...new Set(tachosConUsuarioEncargado.map(t => t.empresa_nombre).filter(Boolean))];
-      if (empresas.length > 0) {
-        setEmpresaAsociada(empresas[0]);
+        // Filtrar tachos de empresas donde el usuario es encargado (tipo "publico")
+        const tachosConUsuarioEncargado = tachosData.filter(tacho =>
+          tacho.propietario === user?.id && tacho.tipo === "publico"
+        );
+
+        // Obtener empresas únicas donde el usuario es encargado
+        const empresas = [...new Set(tachosConUsuarioEncargado.map(t => t.empresa_nombre).filter(Boolean))];
+        if (empresas.length > 0) {
+          setEmpresaAsociada(empresas[0]);
+        }
+
+        // Filtrar tachos públicos activos
+        const tachosPublicosData = tachosData.filter(tacho =>
+          tacho.tipo === "publico" && tacho.estado === "activo"
+        );
+
+        // Filtrar detecciones de la empresa (detecciones en tachos públicos donde el usuario es encargado)
+        const empresaTachoIds = tachosConUsuarioEncargado.map(t => t.id);
+        const deteccionesEmpresaData = deteccionesData.filter(det =>
+          empresaTachoIds.includes(det.tacho) || (det.tacho_id && empresaTachoIds.includes(det.tacho_id))
+        );
+
+        // CORRECCIÓN: Filtrar mis detecciones (solo de tachos personales del usuario)
+        const tachoPersonalIds = tachosPersonales.map(tacho => tacho.id);
+        const userDetecciones = deteccionesData.filter(det =>
+          tachoPersonalIds.includes(det.tacho) || (det.tacho_id && tachoPersonalIds.includes(det.tacho_id))
+        );
+
+        // Calcular tachos públicos cercanos inicialmente (se actualizará en useEffect)
+        let tachosCercaData = [];
+        if (userLocation) {
+          tachosCercaData = tachosPublicosData.filter(tacho => {
+            if (!tacho.ubicacion_lat || !tacho.ubicacion_lon) return false;
+            const distancia = calcularDistancia(
+              userLocation.lat, userLocation.lon,
+              parseFloat(tacho.ubicacion_lat), parseFloat(tacho.ubicacion_lon)
+            );
+            return distancia <= 10; // 10km de radio
+          });
+        }
+
+        // Actualizar estadísticas - CORREGIDO
+        const newStats = {
+          totalTachos: tachosPersonales.length, // Solo tachos personales
+          totalDetecciones: deteccionesData.length,
+          misDetecciones: userDetecciones.length, // Detecciones de tachos personales
+          deteccionesEmpresa: deteccionesEmpresaData.length,
+          tachosEmpresa: tachosConUsuarioEncargado.length,
+          tachosPublicosCerca: tachosCercaData.length,
+        };
+        setStats(newStats);
+
+        // Actualizar estados - CORREGIDO
+        setTachos(tachosData);
+        setTachosEmpresa(tachosConUsuarioEncargado);
+        setTachosPublicos(tachosPublicosData);
+        setTachosCerca(tachosCercaData);
+        setDetecciones(deteccionesData);
+        setDeteccionesEmpresa(deteccionesEmpresaData);
+        setMisTachos(tachosPersonales); // Solo tachos personales
+        setMisDetecciones(userDetecciones); // Solo detecciones de tachos personales
+
+      } catch (error) {
+        console.error("Error cargando datos del portal:", error);
+      } finally {
+        setLoading(false);
       }
-
-      // Filtrar tachos públicos activos
-      const tachosPublicosData = tachosData.filter(tacho =>
-        tacho.tipo === "publico" && tacho.estado === "activo"
-      );
-
-      // Filtrar detecciones de la empresa (detecciones en tachos públicos donde el usuario es encargado)
-      const empresaTachoIds = tachosConUsuarioEncargado.map(t => t.id);
-      const deteccionesEmpresaData = deteccionesData.filter(det =>
-        empresaTachoIds.includes(det.tacho) || (det.tacho_id && empresaTachoIds.includes(det.tacho_id))
-      );
-
-      // Filtrar mis detecciones (donde el usuario es el creador)
-      const userDetecciones = deteccionesData.filter(det => det.usuario === user?.id);
-
-      // Calcular tachos públicos cercanos inicialmente (se actualizará en useEffect)
-      let tachosCercaData = [];
-      if (userLocation) {
-        tachosCercaData = tachosPublicosData.filter(tacho => {
-          if (!tacho.ubicacion_lat || !tacho.ubicacion_lon) return false;
-          const distancia = calcularDistancia(
-            userLocation.lat, userLocation.lon,
-            parseFloat(tacho.ubicacion_lat), parseFloat(tacho.ubicacion_lon)
-          );
-          return distancia <= 10; // 10km de radio
-        });
-      }
-
-      // Actualizar estadísticas
-      const newStats = {
-        totalTachos: userTachos.length,
-        totalDetecciones: deteccionesData.length,
-        misDetecciones: userDetecciones.length,
-        deteccionesEmpresa: deteccionesEmpresaData.length,
-        tachosEmpresa: tachosConUsuarioEncargado.length,
-        tachosPublicosCerca: tachosCercaData.length,
-      };
-      setStats(newStats);
-
-      // Actualizar estados
-      setTachos(tachosData);
-      setTachosEmpresa(tachosConUsuarioEncargado);
-      setTachosPublicos(tachosPublicosData);
-      setTachosCerca(tachosCercaData);
-      setDetecciones(deteccionesData);
-      setDeteccionesEmpresa(deteccionesEmpresaData);
-      setMisTachos(userTachos);
-      setMisDetecciones(userDetecciones);
-    } catch (error) {
-      console.error("Error cargando datos del portal:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
   const handleRefresh = () => {
     setLoading(true);
@@ -435,10 +443,10 @@ export default function UserPortal() {
 
   const getClasificacionIcon = (clasificacion) => {
     switch (clasificacion?.toLowerCase()) {
-      case 'organico': return '🌱';
-      case 'inorganico': return '🏭';
-      case 'reciclable': return '♻️';
-      default: return '📦';
+      case 'organico': return '';
+      case 'inorganico': return '';
+      case 'reciclable': return '';
+      default: return '';
     }
   };
 
@@ -1014,115 +1022,205 @@ export default function UserPortal() {
         </div>
       )}
 
-      {/* Vista de MIS Detecciones */}
-      {activeView === "mydetecciones" && (
-        <div className="portal-view">
-          <div className="portal-card">
-            <div className="portal-card-header">
-              <div className="card-header-left">
-                <Brain size={24} className="header-icon" />
-                <h3 className="portal-card-title">Mis Detecciones</h3>
+{/* Vista de MIS Detecciones */}
+{activeView === "mydetecciones" && (
+  <div className="portal-view">
+    <div className="portal-card">
+      <div className="portal-card-header">
+        <div className="card-header-left">
+          <Brain size={24} className="header-icon" />
+          <div>
+            <h3 className="portal-card-title">Mis Detecciones Personales</h3>
+            <span className="card-subtitle">
+              {misDetecciones.length} detecciones en mis tachos personales
+            </span>
+          </div>
+        </div>
+        <div className="card-header-actions">
+          <div className="search-box">
+            <Search size={18} />
+            <input
+              type="text"
+              placeholder="Buscar por material, categoría..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.target.value)}
+            />
+          </div>
+          <button
+            onClick={() => setActiveView("nuevaDeteccion")}
+            className="nueva-deteccion-btn"
+          >
+            <Camera size={18} />
+            <span>Nueva Detección</span>
+          </button>
+        </div>
+      </div>
+      <div className="portal-card-body">
+        {misDetecciones.length === 0 ? (
+          <div className="empty-state">
+            <Brain size={48} />
+            <h4>No tienes detecciones en tus tachos personales</h4>
+            <p>Crea tu primera detección en la sección "Nueva Detección"</p>
+            <button
+              onClick={() => setActiveView("nuevaDeteccion")}
+              className="primary-btn"
+            >
+              <Camera size={16} />
+              <span>Ir a Nueva Detección</span>
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Resumen de estadísticas MEJORADO */}
+            <div className="stats-summary">
+              <div className="stat-card total">
+                <div className="stat-header">
+                  <div className="stat-icon total">
+                    <Hash size={20} />
+                  </div>
+                  <span className="stat-label">Total</span>
+                </div>
+                <div className="stat-value">{misDetecciones.length}</div>
               </div>
-              <div className="card-header-actions">
-                <div className="search-box">
-                  <Search size={18} />
-                  <input
-                    type="text"
-                    placeholder="Buscar mis detecciones..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
+
+              <div className="stat-card organico">
+                <div className="stat-header">
+                  <div className="stat-icon organico">
+                    <Leaf size={20} />
+                  </div>
+                  <span className="stat-label">Orgánicos</span>
+                </div>
+                <div className="stat-value">
+                  {misDetecciones.filter(d => d.clasificacion === 'organico').length}
+                </div>
+              </div>
+
+              <div className="stat-card reciclable">
+                <div className="stat-header">
+                  <div className="stat-icon reciclable">
+                    <Recycle size={20} />
+                  </div>
+                  <span className="stat-label">Reciclables</span>
+                </div>
+                <div className="stat-value">
+                  {misDetecciones.filter(d => d.clasificacion === 'reciclable').length}
+                </div>
+              </div>
+
+              <div className="stat-card inorganico">
+                <div className="stat-header">
+                  <div className="stat-icon inorganico">
+                    <Ban size={20} />
+                  </div>
+                  <span className="stat-label">Inorgánicos</span>
+                </div>
+                <div className="stat-value">
+                  {misDetecciones.filter(d => d.clasificacion === 'inorganico').length}
                 </div>
               </div>
             </div>
-            <div className="portal-card-body">
-              {misDetecciones.length === 0 ? (
-                <div className="empty-state">
-                  <Brain size={48} style={{ opacity: 0.3, marginBottom: '1rem' }} />
-                  <h4 style={{ fontSize: '1rem', marginBottom: '0.5rem', color: '#4b5563' }}>
-                    No tienes detecciones personales
-                  </h4>
-                  <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
-                    Crea tu primera detección en la sección "Nueva Detección"
-                  </p>
-                </div>
-              ) : (
-                <div className="portal-table-container">
-                  <table className="portal-table">
-                    <thead>
-                      <tr>
-                        <th><div className="th-content"><span>Nombre</span></div></th>
-                        <th><div className="th-content"><span>Clasificación</span></div></th>
-                        <th><div className="th-content"><MapPin size={14} /><span>Ubicación</span></div></th>
-                        <th><div className="th-content"><Calendar size={14} /><span>Fecha</span></div></th>
-                        <th><div className="th-content"><span>Confianza IA</span></div></th>
-                        <th><div className="th-content"><span>Acciones</span></div></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredDetecciones.map((det, index) => {
-                        const ubicacion = getUbicacionFromCoords(det.ubicacion_lat, det.ubicacion_lon);
-                        const fechaRegistro = formatFechaLegible(det.fecha_registro || det.created_at);
 
-                        return (
-                          <tr key={det.id}>
-                            <td>
-                              <div className="table-primary">
-                                <Brain size={16} />
-                                <span>{det.nombre}</span>
-                              </div>
-                            </td>
-                            <td>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <span style={{ fontSize: '1rem' }}>
-                                  {getClasificacionIcon(det.clasificacion)}
-                                </span>
-                                <span className={`clasification-badge ${getClasificacionBadgeClass(det.clasificacion)}`}>
-                                  {getClasificacionText(det.clasificacion)}
-                                </span>
-                              </div>
-                            </td>
-                            <td>
-                              <div className="table-coords">
-                                <MapPin size={14} />
-                                <span>{ubicacion}</span>
-                              </div>
-                            </td>
-                            <td>
-                              <div className="table-date">
-                                <Clock size={14} />
-                                <span>{fechaRegistro}</span>
-                              </div>
-                            </td>
-                            <td>
+            <div className="portal-table-container">
+              <table className="portal-table">
+                <thead>
+                  <tr>
+                    <th><div className="th-content"><span>Tacho</span></div></th>
+                    <th><div className="th-content"><span>Clasificación</span></div></th>
+                    <th><div className="th-content"><Calendar size={14} /><span>Fecha</span></div></th>
+                    <th><div className="th-content"><span>Confianza IA</span></div></th>
+                    <th><div className="th-content"><MapPin size={14} /><span>Ubicación</span></div></th>
+                    <th><div className="th-content"><span>Acciones</span></div></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {misDetecciones
+                    .filter(det => {
+                      const searchLower = searchTerm.toLowerCase();
+                      return (
+                        det.tacho_nombre?.toLowerCase().includes(searchLower) ||
+                        det.clasificacion?.toLowerCase().includes(searchLower) ||
+                        (det.descripcion && det.descripcion.toLowerCase().includes(searchLower))
+                      );
+                    })
+                    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                    .map((det, index) => {
+                      const ubicacion = getUbicacionFromCoords(det.ubicacion_lat, det.ubicacion_lon);
+                      const fechaRegistro = formatFechaLegible(det.created_at);
+
+                      return (
+                        <tr key={det.id}>
+                          <td data-label="Tacho">
+                            <div className="table-primary">
+                              <Trash2 size={16} />
+                              <span>{det.tacho_nombre || `Tacho ${det.tacho}`}</span>
+                            </div>
+                          </td>
+                          <td data-label="Clasificación">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <span style={{ fontSize: '1rem' }}>
+                                {getClasificacionIcon(det.clasificacion)}
+                              </span>
+                              <span className={`clasification-badge ${getClasificacionBadgeClass(det.clasificacion)}`}>
+                                {getClasificacionText(det.clasificacion)}
+                              </span>
+                            </div>
+                          </td>
+                          <td data-label="Fecha">
+                            <div className="table-date">
+                              <Clock size={14} />
+                              <span>{fechaRegistro}</span>
+                            </div>
+                          </td>
+                          <td data-label="Confianza IA">
+                            <div className="confidence-cell">
                               <span className={`confianza-badge ${parseFloat(det.confianza_ia || 0) >= 80 ? 'high' :
                                 parseFloat(det.confianza_ia || 0) >= 60 ? 'medium' : 'low'}`}>
                                 {det.confianza_ia || 0}%
                               </span>
-                            </td>
-                            <td>
-                              <div className="action-buttons">
-                                <Link
-                                  to={`/detecciones/${det.id}`}
-                                  className="detail-btn"
-                                >
-                                  <ImageIcon size={16} />
-                                  <span>Detalle</span>
-                                </Link>
+                              <div className="confidence-bar">
+                                <div
+                                  className="confidence-fill"
+                                  style={{ width: `${det.confianza_ia || 0}%` }}
+                                ></div>
                               </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                            </div>
+                          </td>
+                          <td data-label="Ubicación">
+                            <div className="table-coords">
+                              <MapPin size={14} />
+                              <span>{ubicacion}</span>
+                            </div>
+                          </td>
+                          <td data-label="Acciones">
+                            <div className="action-buttons">
+                              <Link
+                                to={`/detecciones/${det.id}`}
+                                className="detail-btn"
+                                title="Ver detalles"
+                              >
+                                <Eye size={14} />
+                              </Link>
+                              <Link
+                                to={`/tachos/${det.tacho}`}
+                                className="detail-btn secondary"
+                                title="Ir al tacho"
+                              >
+                                <Trash2 size={14} />
+                              </Link>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
             </div>
-          </div>
-        </div>
-      )}
-
+          </>
+        )}
+      </div>
+    </div>
+  </div>
+)}
       {/* Vista de MAPA interactivo */}
       {activeView === "mapa" && (
         <div className="portal-view">
