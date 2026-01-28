@@ -1,3 +1,4 @@
+// src/api/ubicacionApi.js
 import axios from "./axiosConfig";
 
 export const getProvincias = () => axios.get("/ubicacion/provincias/");

@@ -2,8 +2,8 @@
 import { useState, useRef } from "react";
 import { Camera, Upload, Brain, X, AlertCircle } from "lucide-react";
 import "./deteccionesIA.css";
-import CameraCapture from "../../components/CameraCapture";
-import AIProcessor from "../../components/AIProcessor";
+import CameraCapture from "../../components/CameraCapture/CameraCapture";
+import AIProcessor from "../../components/AIProcessor/AIProcessor";
 
 export default function DeteccionesIA() {
   const [showCameraModal, setShowCameraModal] = useState(false);

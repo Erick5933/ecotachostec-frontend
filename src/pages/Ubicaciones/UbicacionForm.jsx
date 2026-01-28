@@ -1,5 +1,5 @@
 // src/pages/Ubicaciones/UbicacionForm.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { MapPin, Save, X, Map, Building } from "lucide-react";
 import api from "../../api/axiosConfig";
@@ -20,11 +20,33 @@ const UbicacionForm = () => {
   const [provincias, setProvincias] = useState([]);
   const [ciudades, setCiudades] = useState([]);
   const [cantones, setCantones] = useState([]);
+  
+  // Estados para autocompletado
+  const [provinciaInput, setProvinciaInput] = useState("");
+  const [ciudadInput, setCiudadInput] = useState("");
+  const [showProvinciaSuggestions, setShowProvinciaSuggestions] = useState(false);
+  const [showCiudadSuggestions, setShowCiudadSuggestions] = useState(false);
+  const [provinciasFiltradas, setProvinciasFiltradas] = useState([]);
   const [ciudadesFiltradas, setCiudadesFiltradas] = useState([]);
+  
+  // Referencias para detectar clics fuera
+  const provinciaRef = useRef(null);
+  const ciudadRef = useRef(null);
+
+  // Función para capitalizar (primera mayúscula, resto minúscula)
+  const capitalizar = (texto) => {
+    if (!texto) return "";
+    return texto.charAt(0).toUpperCase() + texto.slice(1).toLowerCase();
+  };
 
   const loadUbicacion = async () => {
     try {
       const res = await api.get(`/ubicacion/cantones/${id}/`);
+      const provinciaData = provincias.find(p => p.id === res.data.provincia);
+      const ciudadData = ciudades.find(c => c.id === res.data.ciudad);
+      
+      setProvinciaInput(provinciaData?.nombre || "");
+      setCiudadInput(ciudadData?.nombre || "");
       setUbicacion({
         provincia: res.data.provincia || "",
         ciudad: res.data.ciudad || "",
@@ -52,33 +74,105 @@ const UbicacionForm = () => {
 
   useEffect(() => {
     loadProvinciasCantones();
-    if (id) loadUbicacion();
-  }, [id]);
+  }, []);
 
   useEffect(() => {
-    if (ubicacion.provincia) {
-      const filtered = ciudades.filter(
-        (c) => c.provincia === parseInt(ubicacion.provincia)
+    if (id && provincias.length > 0 && ciudades.length > 0) {
+      loadUbicacion();
+    }
+  }, [id, provincias, ciudades]);
+
+  // Filtrar provincias según input
+  useEffect(() => {
+    if (provinciaInput) {
+      const filtered = provincias.filter(p =>
+        p.nombre.toLowerCase().includes(provinciaInput.toLowerCase())
       );
+      setProvinciasFiltradas(filtered);
+    } else {
+      setProvinciasFiltradas([]);
+    }
+  }, [provinciaInput, provincias]);
+
+  // Filtrar ciudades según input y provincia seleccionada
+  useEffect(() => {
+    if (ciudadInput) {
+      let filtered = ciudades;
+      
+      // Si hay una provincia seleccionada en la base de datos, filtrar por ella
+      const provinciaExistente = provincias.find(p => 
+        p.nombre.toLowerCase() === provinciaInput.toLowerCase()
+      );
+      
+      if (provinciaExistente) {
+        filtered = ciudades.filter(c => c.provincia === provinciaExistente.id);
+      }
+      
+      // Filtrar por texto ingresado
+      filtered = filtered.filter(c =>
+        c.nombre.toLowerCase().includes(ciudadInput.toLowerCase())
+      );
+      
       setCiudadesFiltradas(filtered);
     } else {
       setCiudadesFiltradas([]);
     }
-  }, [ubicacion.provincia, ciudades]);
+  }, [ciudadInput, provinciaInput, ciudades, provincias]);
+
+  // Cerrar sugerencias al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (provinciaRef.current && !provinciaRef.current.contains(event.target)) {
+        setShowProvinciaSuggestions(false);
+      }
+      if (ciudadRef.current && !ciudadRef.current.contains(event.target)) {
+        setShowCiudadSuggestions(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleProvinciaChange = (e) => {
+    const value = capitalizar(e.target.value);
+    setProvinciaInput(value);
+    setShowProvinciaSuggestions(true);
+    
+    // Limpiar ciudad cuando cambie provincia
+    setCiudadInput("");
+    setUbicacion({ ...ubicacion, ciudad: "" });
+    setError("");
+  };
+
+  const handleCiudadChange = (e) => {
+    const value = capitalizar(e.target.value);
+    setCiudadInput(value);
+    setShowCiudadSuggestions(true);
+    setError("");
+  };
+
+  const selectProvincia = (provincia) => {
+    setProvinciaInput(provincia.nombre);
+    setUbicacion({ ...ubicacion, provincia: provincia.id, ciudad: "" });
+    setShowProvinciaSuggestions(false);
+    setCiudadInput("");
+  };
+
+  const selectCiudad = (ciudad) => {
+    setCiudadInput(ciudad.nombre);
+    setUbicacion({ ...ubicacion, ciudad: ciudad.id });
+    setShowCiudadSuggestions(false);
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
-    if (name === "provincia") {
-      setUbicacion({ ...ubicacion, provincia: value, ciudad: "" });
-    } else {
-      setUbicacion({ ...ubicacion, [name]: value });
-    }
+    setUbicacion({ ...ubicacion, [name]: value });
     setError("");
   };
 
   const validateForm = () => {
-    if (!ubicacion.provincia || !ubicacion.ciudad || !ubicacion.canton) {
+    if (!provinciaInput || !ciudadInput || !ubicacion.canton) {
       setError("Todos los campos son obligatorios");
       return false;
     }
@@ -94,9 +188,49 @@ const UbicacionForm = () => {
     setError("");
 
     try {
+      // Verificar si la provincia existe en la base de datos
+      const provinciaExistente = provincias.find(p => 
+        p.nombre.toLowerCase() === provinciaInput.toLowerCase()
+      );
+
+      // Verificar si la ciudad existe en la base de datos
+      const ciudadExistente = ciudades.find(c => 
+        c.nombre.toLowerCase() === ciudadInput.toLowerCase()
+      );
+
+      let provinciaId = provinciaExistente?.id;
+      let ciudadId = ciudadExistente?.id;
+
+      // CASO 1: Si provincia no existe, crear provincia, ciudad y cantón
+      if (!provinciaExistente) {
+        // Crear provincia nueva
+        const resProv = await api.post("/ubicacion/provincias/", {
+          nombre: provinciaInput
+        });
+        provinciaId = resProv.data.id;
+
+        // Crear ciudad nueva con la provincia recién creada
+        const resCiud = await api.post("/ubicacion/ciudades/", {
+          nombre: ciudadInput,
+          provincia: provinciaId
+        });
+        ciudadId = resCiud.data.id;
+      }
+      // CASO 2: Si provincia existe pero ciudad no, crear ciudad y cantón
+      else if (provinciaExistente && !ciudadExistente) {
+        const resCiud = await api.post("/ubicacion/ciudades/", {
+          nombre: ciudadInput,
+          provincia: provinciaId
+        });
+        ciudadId = resCiud.data.id;
+      }
+      // CASO 3: Si ambos existen, solo crear/actualizar cantón
+      // (ciudadId ya está asignado)
+
+      // Crear o actualizar el cantón
       const dataToSend = {
         nombre: ubicacion.canton,
-        ciudad: parseInt(ubicacion.ciudad),
+        ciudad: ciudadId,
       };
 
       if (id) {
@@ -110,6 +244,8 @@ const UbicacionForm = () => {
       console.error("Error guardando ubicación", err);
       setError(
         err.response?.data?.message ||
+        err.response?.data?.nombre?.[0] ||
+        err.response?.data?.error ||
         "No se pudo guardar la ubicación"
       );
     } finally {
@@ -145,55 +281,133 @@ const UbicacionForm = () => {
           )}
 
           <div className="form-grid">
-            {/* Provincia */}
-            <div className="form-group form-grid-full">
+            {/* Provincia con Autocompletado */}
+            <div className="form-group form-grid-full" ref={provinciaRef}>
               <label htmlFor="provincia" className="form-label">
                 <Map className="icon-sm" style={{ display: "inline", marginRight: "8px" }} />
                 Provincia
               </label>
-              <select
+              <input
+                type="text"
                 id="provincia"
                 name="provincia"
-                value={ubicacion.provincia}
-                onChange={handleChange}
-                className="form-select"
+                value={provinciaInput}
+                onChange={handleProvinciaChange}
+                onFocus={() => setShowProvinciaSuggestions(true)}
+                className="form-input"
+                placeholder="Escriba el nombre de la provincia"
                 required
-              >
-                <option value="">Seleccione una provincia</option>
-                {provincias.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nombre}
-                  </option>
-                ))}
-              </select>
+                autoComplete="off"
+              />
+              
+              {/* Sugerencias de Provincias */}
+              {showProvinciaSuggestions && provinciasFiltradas.length > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  backgroundColor: 'white',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  marginTop: '4px',
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                  boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                  zIndex: 1000
+                }}>
+                  {provinciasFiltradas.map((prov) => (
+                    <div
+                      key={prov.id}
+                      onClick={() => selectProvincia(prov)}
+                      style={{
+                        padding: '12px 16px',
+                        cursor: 'pointer',
+                        borderBottom: '1px solid #f1f5f9',
+                        transition: 'background-color 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = 'white'}
+                    >
+                      <div style={{ fontWeight: '500', color: '#1f2937' }}>
+                        {prov.nombre}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              <small style={{ color: "var(--color-gray)", marginTop: "8px", display: "block" }}>
+                {provinciasFiltradas.length > 0 && showProvinciaSuggestions 
+                  ? "Seleccione de la lista o escriba una nueva provincia"
+                  : "Primera letra mayúscula, resto minúscula"}
+              </small>
             </div>
 
-            {/* Ciudad */}
-            <div className="form-group form-grid-full">
+            {/* Ciudad con Autocompletado */}
+            <div className="form-group form-grid-full" ref={ciudadRef}>
               <label htmlFor="ciudad" className="form-label">
                 <Building className="icon-sm" style={{ display: "inline", marginRight: "8px" }} />
                 Ciudad
               </label>
-              <select
+              <input
+                type="text"
                 id="ciudad"
                 name="ciudad"
-                value={ubicacion.ciudad}
-                onChange={handleChange}
-                className="form-select"
+                value={ciudadInput}
+                onChange={handleCiudadChange}
+                onFocus={() => setShowCiudadSuggestions(true)}
+                className="form-input"
+                placeholder="Escriba el nombre de la ciudad"
                 required
-                disabled={!ubicacion.provincia}
-              >
-                <option value="">
-                  {ubicacion.provincia
-                    ? "Seleccione una ciudad"
-                    : "Primero seleccione una provincia"}
-                </option>
-                {ciudadesFiltradas.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
-                  </option>
-                ))}
-              </select>
+                autoComplete="off"
+                disabled={!provinciaInput}
+              />
+              
+              {/* Sugerencias de Ciudades */}
+              {showCiudadSuggestions && ciudadesFiltradas.length > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  backgroundColor: 'white',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  marginTop: '4px',
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                  boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                  zIndex: 1000
+                }}>
+                  {ciudadesFiltradas.map((ciud) => (
+                    <div
+                      key={ciud.id}
+                      onClick={() => selectCiudad(ciud)}
+                      style={{
+                        padding: '12px 16px',
+                        cursor: 'pointer',
+                        borderBottom: '1px solid #f1f5f9',
+                        transition: 'background-color 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = 'white'}
+                    >
+                      <div style={{ fontWeight: '500', color: '#1f2937' }}>
+                        {ciud.nombre}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              <small style={{ color: "var(--color-gray)", marginTop: "8px", display: "block" }}>
+                {!provinciaInput 
+                  ? "Primero escriba una provincia"
+                  : ciudadesFiltradas.length > 0 && showCiudadSuggestions
+                    ? "Seleccione de la lista o escriba una nueva ciudad"
+                    : "Primera letra mayúscula, resto minúscula"}
+              </small>
             </div>
 
             {/* Cantón */}

@@ -9,8 +9,8 @@ export const logout = () => axios.post("/usuarios/auth/logout/");
 
 // --- NUEVAS FUNCIONES ---
 
-// Enviar el token de Google al backend
-export const googleLogin = (token) => axios.post("/usuarios/auth/google/", { token });
+// Enviar el token de Google al backend (id_token y opcionalmente access_token)
+export const googleLogin = (data) => axios.post("/usuarios/auth/google/", data);
 
 // Solicitar el correo de recuperación
 export const requestPasswordReset = (email) => axios.post("/usuarios/auth/request-reset-email/", { email });

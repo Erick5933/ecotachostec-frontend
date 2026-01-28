@@ -6,7 +6,7 @@ import { login, googleLogin } from "../../api/authApi";
 import "./auth.css";
 
 // Firebase imports
-import { signInWithPopup } from "firebase/auth";
+import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 import { auth, googleProvider } from "../../firebaseConfig";
 
 export default function Login() {
@@ -68,11 +68,14 @@ export default function Login() {
       // 1. Abrir popup de Google
       const result = await signInWithPopup(auth, googleProvider);
 
-      // 2. Obtener el token de Google
-      const tokenGoogle = await result.user.getIdToken();
+      // 2. Obtener credenciales de Google (access_token) e ID token de Firebase
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      let idToken = await result.user.getIdToken(); // ID token de Firebase
 
-      // 3. Enviarlo a tu Backend
-      const response = await googleLogin(tokenGoogle);
+      // 3. Enviar al backend ambos tokens (prioridad al id_token)
+      const response = await googleLogin({
+        token: idToken,
+      });
 
       // 4. Loguear en el contexto
       const { token, user } = response.data;
@@ -87,11 +90,45 @@ export default function Login() {
 
     } catch (err) {
       console.error("Error en inicio con Google:", err);
+      if (err.response) {
+        console.error("Detalle backend (status, data):", err.response.status, err.response.data);
+      }
+
+      // Intento de recuperación si el backend reporta desfase de reloj
+      const backendErrorMsg = err.response?.data?.error || err.response?.data?.message || "";
+      if (typeof backendErrorMsg === 'string' && backendErrorMsg.includes('Token used too early')) {
+        try {
+          // Espera breve para compensar desfase de reloj (p.ej. 7-10s)
+          await new Promise((resolve) => setTimeout(resolve, 8000));
+          // Opcional: refrescar el ID token
+          idToken = await auth.currentUser.getIdToken(true);
+          const retryResp = await googleLogin({ token: idToken });
+          const { token, user } = retryResp.data;
+          loginUser(user, token);
+          if (user.rol === "admin") {
+            navigate("/");
+          } else {
+            navigate("/portal");
+          }
+          return; // Salimos tras éxito en reintento
+        } catch (retryErr) {
+          console.error("Reintento tras desfase de reloj falló:", retryErr);
+          setError("Hubo un desfase de reloj entre cliente y servidor. Intenta nuevamente en unos segundos o sincroniza la hora del servidor.");
+          return;
+        }
+      }
 
       if (err.code === 'auth/popup-closed-by-user') {
         setError("El inicio de sesión fue cancelado.");
+      } else if (err.response?.status === 400) {
+        setError(
+          err.response?.data?.message ||
+          "El inicio de sesión con Google no está disponible en este momento. Por favor, usa tu email y contraseña."
+        );
+      } else if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
+        setError("No se pudo conectar con el servidor. Verifica que el backend esté funcionando.");
       } else {
-        setError("Error al conectar con Google.");
+        setError("Error al conectar con Google. Intenta con email y contraseña.");
       }
     } finally {
       setGoogleLoading(false);

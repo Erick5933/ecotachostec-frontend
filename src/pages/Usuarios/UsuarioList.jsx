@@ -1,7 +1,7 @@
 // src/pages/Usuarios/UsuarioList.jsx
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Users, Plus, Search, Edit, Trash2, Mail, Shield } from "lucide-react";
+import { Users, Plus, Search, Edit, Trash2, Mail, Shield, CheckCircle } from "lucide-react";
 import api from "../../api/axiosConfig";
 import "../adminPages.css";
 
@@ -10,6 +10,7 @@ const UsuarioList = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRol, setFilterRol] = useState("");
+  const [filterEstado, setFilterEstado] = useState("activos"); // Nuevo filtro
 
   const loadUsuarios = async () => {
     try {
@@ -23,13 +24,34 @@ const UsuarioList = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("¿Está seguro que desea eliminar este usuario?")) return;
+    if (!window.confirm("¿Está seguro que desea desactivar este usuario?")) return;
 
     try {
-      await api.delete(`/usuarios/${id}/`);
-      setUsuarios((prev) => prev.filter((u) => u.id !== id));
+      // Borrado lógico: actualiza el estado a inactivo
+      await api.patch(`/usuarios/${id}/`, { is_active: false });
+      // Actualiza el estado local
+      setUsuarios((prev) =>
+        prev.map((u) => (u.id === id ? { ...u, is_active: false } : u))
+      );
     } catch (e) {
-      alert("No se pudo eliminar el usuario");
+      alert("No se pudo desactivar el usuario");
+      console.error(e);
+    }
+  };
+
+  const handleActivate = async (id) => {
+    if (!window.confirm("¿Está seguro que desea reactivar este usuario?")) return;
+
+    try {
+      // Reactiva el usuario
+      await api.patch(`/usuarios/${id}/`, { is_active: true });
+      // Actualiza el estado local
+      setUsuarios((prev) =>
+        prev.map((u) => (u.id === id ? { ...u, is_active: true } : u))
+      );
+    } catch (e) {
+      alert("No se pudo reactivar el usuario");
+      console.error(e);
     }
   };
 
@@ -42,7 +64,11 @@ const UsuarioList = () => {
       usuario.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       usuario.email?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRol = filterRol === "" || usuario.rol === filterRol;
-    return matchesSearch && matchesRol;
+    const matchesEstado = 
+      filterEstado === "todos" ||
+      (filterEstado === "activos" && usuario.is_active !== false) ||
+      (filterEstado === "inactivos" && usuario.is_active === false);
+    return matchesSearch && matchesRol && matchesEstado;
   });
 
   if (loading) {
@@ -95,6 +121,15 @@ const UsuarioList = () => {
           <option value="">Todos los roles</option>
           <option value="admin">Administrador</option>
           <option value="user">Usuario</option>
+        </select>
+        <select
+          className="form-select filter-select"
+          value={filterEstado}
+          onChange={(e) => setFilterEstado(e.target.value)}
+        >
+          <option value="activos">Solo Activos</option>
+          <option value="inactivos">Solo Inactivos</option>
+          <option value="todos">Todos</option>
         </select>
       </div>
 
@@ -149,10 +184,17 @@ const UsuarioList = () => {
                     </div>
                   </td>
                   <td>
-                    <span className="status-badge status-active">
-                      <span className="status-indicator"></span>
-                      Activo
-                    </span>
+                    {u.is_active !== false ? (
+                      <span className="status-badge status-active">
+                        <span className="status-indicator"></span>
+                        Activo
+                      </span>
+                    ) : (
+                      <span className="status-badge status-inactive">
+                        <span className="status-indicator"></span>
+                        Inactivo
+                      </span>
+                    )}
                   </td>
                   <td>
                     <div className="action-buttons">
@@ -163,13 +205,24 @@ const UsuarioList = () => {
                       >
                         <Edit className="icon-md" />
                       </Link>
-                      <button
-                        onClick={() => handleDelete(u.id)}
-                        className="btn-icon btn-delete"
-                        title="Eliminar usuario"
-                      >
-                        <Trash2 className="icon-md" />
-                      </button>
+                      {u.is_active !== false ? (
+                        <button
+                          onClick={() => handleDelete(u.id)}
+                          className="btn-icon btn-delete"
+                          title="Desactivar usuario"
+                        >
+                          <Trash2 className="icon-md" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleActivate(u.id)}
+                          className="btn-icon btn-success"
+                          title="Reactivar usuario"
+                          style={{ backgroundColor: "#10b981", color: "white" }}
+                        >
+                          <CheckCircle className="icon-md" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
