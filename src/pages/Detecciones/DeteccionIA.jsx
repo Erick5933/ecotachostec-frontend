@@ -1,6 +1,6 @@
 import { useState } from "react";
-import CameraCapture from "../../components/CameraCapture";
-import AIProcessor from "../../components/AIProcessor";
+import CameraCapture from "../../components/CameraCapture/CameraCapture";
+import AIProcessor from "../../components/AIProcessor/AIProcessor";
 
 export default function DeteccionIA() {
   const [capturedImage, setCapturedImage] = useState(null);
