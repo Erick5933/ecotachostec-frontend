@@ -6,6 +6,11 @@ import {
   Users, ChevronDown, EyeOff, Globe, CheckCircle, XCircle
 } from "lucide-react";
 import api from "../../api/axiosConfig";
+import {
+  validarCampo,
+  validarCodigoTacho,
+  sanitizarEntrada,
+} from "../../utils/validations";
 import "../adminPages.css";
 
 // Leaflet
@@ -29,6 +34,9 @@ const TachoForm = () => {
   const [codigoDisponible, setCodigoDisponible] = useState(null);
   const [verificandoCodigo, setVerificandoCodigo] = useState(false);
   const [tachosExistentes, setTachosExistentes] = useState([]);
+
+  // Estado para errores de validación por campo
+  const [erroresCampos, setErroresCampos] = useState({});
 
   // ------------------ FORM DATA -------------------------
   const [tacho, setTacho] = useState({
@@ -214,18 +222,56 @@ const TachoForm = () => {
   // ------------------ MANEJO DE CAMBIOS EN EL FORMULARIO ----------
   const handleChange = (e) => {
     const { name, value, type } = e.target;
+    let valorSanitizado = sanitizarEntrada(value);
+
+    // Aplicar restricciones por campo
+    if (name === 'codigo') {
+      // Código: letras, números, guiones, guiones bajos
+      valorSanitizado = valorSanitizado.replace(/[^a-zA-Z0-9_-]/g, '');
+    } else if (name === 'nombre') {
+      // Nombre: solo letras y espacios
+      valorSanitizado = valorSanitizado.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '');
+    } else if (name === 'descripcion') {
+      // Descripción: letras, números, espacios, puntos, comas
+      valorSanitizado = valorSanitizado.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s.,()]/g, '');
+    }
 
     setTacho(prev => ({
       ...prev,
-      [name]: type === 'number' ? parseFloat(value) : value
+      [name]: type === 'number' ? parseFloat(valorSanitizado) : valorSanitizado
     }));
 
     // Validar código único en tiempo real
     if (name === "codigo") {
-      validarCodigoUnico(value);
+      validarCodigoUnico(valorSanitizado);
+      validarCampoIndividual('codigo', valorSanitizado);
+    } else if (name === 'nombre') {
+      validarCampoIndividual('nombre', valorSanitizado);
     }
 
     setError("");
+  };
+
+  const validarCampoIndividual = (nombreCampo, valor) => {
+    const nuevosErrores = { ...erroresCampos };
+    
+    if (nombreCampo === 'codigo') {
+      const resultado = validarCampo(valor, 'codigo_tacho', { requerido: true, minimo: 2, maximo: 50 });
+      if (resultado.valido) {
+        delete nuevosErrores.codigo;
+      } else {
+        nuevosErrores.codigo = resultado.error;
+      }
+    } else if (nombreCampo === 'nombre') {
+      const resultado = validarCampo(valor, 'nombre', { requerido: true, minimo: 2, maximo: 100 });
+      if (resultado.valido) {
+        delete nuevosErrores.nombre;
+      } else {
+        nuevosErrores.nombre = resultado.error;
+      }
+    }
+    
+    setErroresCampos(nuevosErrores);
   };
 
   const handleTipoChange = (e) => {
@@ -251,31 +297,43 @@ const TachoForm = () => {
   };
 
   const validateForm = () => {
-    // Validar campos obligatorios
-    if (!tacho.codigo || !tacho.nombre) {
-      setError("Código y nombre son obligatorios");
-      return false;
+    const nuevosErrores = {};
+    let valido = true;
+
+    // Validar código
+    const validCodigo = validarCampo(tacho.codigo, 'codigo_tacho', { requerido: true, minimo: 2, maximo: 50 });
+    if (!validCodigo.valido) {
+      nuevosErrores.codigo = validCodigo.error;
+      valido = false;
     }
 
     // Validar código único
     if (codigoDisponible === false) {
-      setError("El código ya está en uso. Por favor, use un código diferente.");
-      return false;
+      nuevosErrores.codigo = "El código ya está en uso. Use uno diferente.";
+      valido = false;
     }
 
-    // Validar que si es tipo público, tenga empresa_nombre
+    // Validar nombre
+    const validNombre = validarCampo(tacho.nombre, 'nombre', { requerido: true, minimo: 2, maximo: 100 });
+    if (!validNombre.valido) {
+      nuevosErrores.nombre = validNombre.error;
+      valido = false;
+    }
+
+    // Validar empresa_nombre si es público
     if (tacho.tipo === "publico" && !tacho.empresa_nombre.trim()) {
-      setError("Para tachos públicos, debe ingresar el nombre de la empresa/institución");
-      return false;
+      nuevosErrores.empresa = "Para tachos públicos, ingrese el nombre de la empresa/institución";
+      valido = false;
     }
 
     // Validar coordenadas
     if (!tacho.ubicacion_lat || !tacho.ubicacion_lon) {
       setError("Debe seleccionar una ubicación en el mapa");
-      return false;
+      valido = false;
     }
 
-    return true;
+    setErroresCampos(nuevosErrores);
+    return valido;
   };
 
   // ------------------ GUARDAR ----------------------------

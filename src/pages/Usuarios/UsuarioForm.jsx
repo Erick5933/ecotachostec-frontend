@@ -7,6 +7,15 @@ import {
   getCiudades,
   getCantones,
 } from "../../api/ubicacionApi";
+import {
+  validarCampo,
+  validarSoloLetras,
+  validarEmail,
+  validarTelefono,
+  validarContrasena,
+  sanitizarEntrada,
+  capitalizarPrimerLetra,
+} from "../../utils/validations";
 
 import "../adminPages.css";
 
@@ -32,6 +41,13 @@ const UsuarioForm = () => {
     password: "",
     confirmPassword: "",
   });
+
+  // Estado para errores de validación por campo
+  const [erroresCampos, setErroresCampos] = useState({});
+
+  // Estado para mostrar/ocultar contraseña
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // ================================
   //  CARGA DE CATÁLOGOS
@@ -86,8 +102,59 @@ const UsuarioForm = () => {
   //  HANDLERS
   // ================================
   const handleChange = (e) => {
-    setUsuario({ ...usuario, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    let valorSanitizado = sanitizarEntrada(value);
+    
+    // Aplicar restricciones por campo
+    if (name === 'nombre') {
+      valorSanitizado = valorSanitizado.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '');
+    } else if (name === 'telefono') {
+      valorSanitizado = valorSanitizado.replace(/[^0-9]/g, '').slice(0, 10);
+    } else if (name === 'email') {
+      valorSanitizado = valorSanitizado.toLowerCase().trim();
+    }
+    
+    setUsuario({ ...usuario, [name]: valorSanitizado });
+    
+    // Validar el campo cuando cambia
+    validarCampoIndividual(name, valorSanitizado);
     setError("");
+  };
+
+  const validarCampoIndividual = (nombreCampo, valor) => {
+    const nuevosErrores = { ...erroresCampos };
+    
+    if (nombreCampo === 'nombre') {
+      const resultado = validarCampo(valor, 'nombre', { requerido: true, minimo: 2, maximo: 100 });
+      if (resultado.valido) {
+        delete nuevosErrores.nombre;
+      } else {
+        nuevosErrores.nombre = resultado.error;
+      }
+    } else if (nombreCampo === 'email') {
+      const resultado = validarCampo(valor, 'email', { requerido: true });
+      if (resultado.valido) {
+        delete nuevosErrores.email;
+      } else {
+        nuevosErrores.email = resultado.error;
+      }
+    } else if (nombreCampo === 'telefono') {
+      const resultado = validarCampo(valor, 'telefono', { requerido: true });
+      if (resultado.valido) {
+        delete nuevosErrores.telefono;
+      } else {
+        nuevosErrores.telefono = resultado.error;
+      }
+    } else if (nombreCampo === 'password' && valor) {
+      const resultado = validarCampo(valor, 'contrasena');
+      if (resultado.valido) {
+        delete nuevosErrores.password;
+      } else {
+        nuevosErrores.password = resultado.error;
+      }
+    }
+    
+    setErroresCampos(nuevosErrores);
   };
 
   const handleProvinciaChange = async (e) => {
@@ -118,22 +185,56 @@ const UsuarioForm = () => {
   //  VALIDACIÓN
   // ================================
   const validateForm = () => {
-    if (!usuario.nombre || !usuario.email || !usuario.telefono)
-      return setError("Todos los campos son obligatorios"), false;
+    // Limpiar errores previos
+    const nuevosErrores = {};
+    let valido = true;
 
-    if (!usuario.provincia || !usuario.ciudad || !usuario.canton)
-      return setError("Selecciona provincia, ciudad y cantón"), false;
+    // Validar nombre
+    const validNombre = validarCampo(usuario.nombre, 'nombre', { requerido: true, minimo: 2, maximo: 100 });
+    if (!validNombre.valido) {
+      nuevosErrores.nombre = validNombre.error;
+      valido = false;
+    }
 
-    if (!id && !usuario.password)
-      return setError("La contraseña es obligatoria para usuarios nuevos"), false;
+    // Validar email
+    const validEmail = validarCampo(usuario.email, 'email', { requerido: true });
+    if (!validEmail.valido) {
+      nuevosErrores.email = validEmail.error;
+      valido = false;
+    }
 
-    if (usuario.password !== usuario.confirmPassword)
-      return setError("Las contraseñas no coinciden"), false;
+    // Validar teléfono
+    const validTelefono = validarCampo(usuario.telefono, 'telefono', { requerido: true });
+    if (!validTelefono.valido) {
+      nuevosErrores.telefono = validTelefono.error;
+      valido = false;
+    }
 
-    if (usuario.password && usuario.password.length < 6)
-      return setError("La contraseña debe tener al menos 6 caracteres"), false;
+    // Validar ubicación
+    if (!usuario.provincia || !usuario.ciudad || !usuario.canton) {
+      setError("Selecciona provincia, ciudad y cantón");
+      valido = false;
+    }
 
-    return true;
+    // Validar contraseña
+    if (!id && !usuario.password) {
+      nuevosErrores.password = "La contraseña es obligatoria para usuarios nuevos";
+      valido = false;
+    } else if (usuario.password) {
+      const validPassword = validarCampo(usuario.password, 'contrasena');
+      if (!validPassword.valido) {
+        nuevosErrores.password = validPassword.error;
+        valido = false;
+      }
+
+      if (usuario.password !== usuario.confirmPassword) {
+        nuevosErrores.confirmPassword = "Las contraseñas no coinciden";
+        valido = false;
+      }
+    }
+
+    setErroresCampos(nuevosErrores);
+    return valido;
   };
 
   // ================================
@@ -205,9 +306,12 @@ const UsuarioForm = () => {
                 name="nombre"
                 value={usuario.nombre}
                 onChange={handleChange}
-                className="form-input"
+                className={`form-input ${erroresCampos.nombre ? 'input-error' : ''}`}
                 required
               />
+              {erroresCampos.nombre && (
+                <span className="input-error-msg">{erroresCampos.nombre}</span>
+              )}
             </div>
 
             <div className="form-group">
@@ -217,21 +321,32 @@ const UsuarioForm = () => {
                 name="email"
                 value={usuario.email}
                 onChange={handleChange}
-                className="form-input"
+                className={`form-input ${erroresCampos.email ? 'input-error' : ''}`}
                 required
               />
+              {erroresCampos.email && (
+                <span className="input-error-msg">{erroresCampos.email}</span>
+              )}
             </div>
 
             <div className="form-group">
-              <label>Teléfono</label>
+              <label>Teléfono (10 dígitos)</label>
               <input
                 type="text"
                 name="telefono"
                 value={usuario.telefono}
                 onChange={handleChange}
-                className="form-input"
+                className={`form-input ${erroresCampos.telefono ? 'input-error' : ''}`}
+                maxLength="10"
+                placeholder="0912345678"
                 required
               />
+              {erroresCampos.telefono && (
+                <span className="input-error-msg">{erroresCampos.telefono}</span>
+              )}
+              {usuario.telefono && !erroresCampos.telefono && (
+                <span style={{ color: '#22c55e', fontSize: '0.85rem', marginTop: '4px' }}>✓ Válido</span>
+              )}
             </div>
 
             {/* Provincia */}
@@ -308,26 +423,57 @@ const UsuarioForm = () => {
             {/* Password */}
             <div className="form-group">
               <label>{id ? "Nueva contraseña (opcional)" : "Contraseña"}</label>
-              <input
-                type="password"
-                name="password"
-                value={usuario.password}
-                onChange={handleChange}
-                className="form-input"
-                {...(!id && { required: true })}
-              />
+              <div className="password-input-wrapper">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  value={usuario.password}
+                  onChange={handleChange}
+                  className={`form-input ${erroresCampos.password ? 'input-error' : ''}`}
+                  placeholder="Min. 8 caracteres, mayúscula, minúscula y número"
+                  {...(!id && { required: true })}
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? "👁️" : "👁️‍🗨️"}
+                </button>
+              </div>
+              {erroresCampos.password && (
+                <span className="input-error-msg">{erroresCampos.password}</span>
+              )}
+              {usuario.password && !erroresCampos.password && (
+                <span style={{ color: '#22c55e', fontSize: '0.85rem', marginTop: '4px' }}>✓ Contraseña fuerte</span>
+              )}
             </div>
 
             <div className="form-group">
               <label>Confirmar Contraseña</label>
-              <input
-                type="password"
-                name="confirmPassword"
-                value={usuario.confirmPassword}
-                onChange={handleChange}
-                className="form-input"
-                {...(!id && { required: true })}
-              />
+              <div className="password-input-wrapper">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  name="confirmPassword"
+                  value={usuario.confirmPassword}
+                  onChange={handleChange}
+                  className={`form-input ${erroresCampos.confirmPassword ? 'input-error' : ''}`}
+                  {...(!id && { required: true })}
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                >
+                  {showConfirmPassword ? "👁️" : "👁️‍🗨️"}
+                </button>
+              </div>
+              {erroresCampos.confirmPassword && (
+                <span className="input-error-msg">{erroresCampos.confirmPassword}</span>
+              )}
+              {usuario.confirmPassword && usuario.password === usuario.confirmPassword && !erroresCampos.confirmPassword && (
+                <span style={{ color: '#22c55e', fontSize: '0.85rem', marginTop: '4px' }}>✓ Coinciden</span>
+              )}
             </div>
           </div>
 

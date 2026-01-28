@@ -554,6 +554,28 @@
     font-size: 13px;
   }
 }
+
+/* ========================================
+   VALIDACIÓN EN AUTH
+   ======================================== */
+
+.input-error {
+  border-color: #ef4444 !important;
+  background-color: rgba(239, 68, 68, 0.05);
+}
+
+.input-error-msg {
+  display: block;
+  color: #ef4444;
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+  font-weight: 500;
+}
+
+.form-input.input-error:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
   .auth-logo {
     flex-direction: column;
   }
