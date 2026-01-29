@@ -12,8 +12,8 @@ import (
 )
 
 type Health struct {
-	Status string `json:"status"`
-	Message string `json:"message"`
+	Status    string `json:"status"`
+	Message   string `json:"message"`
 	Timestamp string `json:"timestamp"`
 }
 

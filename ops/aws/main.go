@@ -34,18 +34,26 @@ func main() {
 	if err != nil {
 		log.Fatalf("AWS config error: %v", err)
 	}
-	 s3Client := s3.NewFromConfig(cfg)
+	s3Client := s3.NewFromConfig(cfg)
 
 	uploaded := 0
 	err = filepath.Walk(buildDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil { return err }
-		if info.IsDir() { return nil }
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
 
 		key := filepath.ToSlash(strings.TrimPrefix(path, buildDir))
-		if strings.HasPrefix(key, "/") { key = key[1:] }
+		if strings.HasPrefix(key, "/") {
+			key = key[1:]
+		}
 
 		f, err := os.Open(path)
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		defer f.Close()
 
 		// detect content type
@@ -54,7 +62,8 @@ func main() {
 			buf := make([]byte, 512)
 			n, _ := f.Read(buf)
 			ct = httpDetectContentType(buf[:n])
-			if _, err := f.Seek(0, io.SeekStart); err != nil {}
+			if _, err := f.Seek(0, io.SeekStart); err != nil {
+			}
 		}
 
 		cacheControl := "public, max-age=31536000"
@@ -64,9 +73,13 @@ func main() {
 
 		// compute ETag
 		h := sha1.New()
-		if _, err := io.Copy(h, f); err != nil { return err }
+		if _, err := io.Copy(h, f); err != nil {
+			return err
+		}
 		etag := hex.EncodeToString(h.Sum(nil))
-		if _, err := f.Seek(0, io.SeekStart); err != nil { return err }
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			return err
+		}
 
 		_, err = s3Client.PutObject(ctx, &s3.PutObjectInput{
 			Bucket:       &s3Bucket,
@@ -84,7 +97,9 @@ func main() {
 		log.Printf("Uploaded: %s (%s)", key, ct)
 		return nil
 	})
-	if err != nil { log.Fatal(err) }
+	if err != nil {
+		log.Fatal(err)
+	}
 	log.Printf("Total uploaded: %d files", uploaded)
 
 	if cfDist != "" {
@@ -96,11 +111,13 @@ func main() {
 				CallerReference: &caller,
 				Paths: &cfTypes.Paths{
 					Quantity: 1,
-					Items: []string{"/*"},
+					Items:    []string{"/*"},
 				},
 			},
 		})
-		if err != nil { log.Fatalf("CloudFront invalidation error: %v", err) }
+		if err != nil {
+			log.Fatalf("CloudFront invalidation error: %v", err)
+		}
 		log.Println("CloudFront invalidation requested: /*")
 	} else {
 		log.Println("CLOUDFRONT_DISTRIBUTION_ID not set; skipped invalidation")
@@ -118,8 +135,14 @@ func httpDetectContentType(b []byte) string {
 // but we keep it simple to avoid extra imports.
 func detectContentType(b []byte) string {
 	// very small heuristic
-	if len(b) >= 4 && string(b[:4]) == "\x89PNG" { return "image/png" }
-	if len(b) >= 3 && string(b[:3]) == "GIF" { return "image/gif" }
-	if len(b) >= 2 && b[0] == 0xFF && b[1] == 0xD8 { return "image/jpeg" }
+	if len(b) >= 4 && string(b[:4]) == "\x89PNG" {
+		return "image/png"
+	}
+	if len(b) >= 3 && string(b[:3]) == "GIF" {
+		return "image/gif"
+	}
+	if len(b) >= 2 && b[0] == 0xFF && b[1] == 0xD8 {
+		return "image/jpeg"
+	}
 	return "application/octet-stream"
 }
