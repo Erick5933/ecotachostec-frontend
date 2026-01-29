@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Camera, Zap, Target, AlertCircle, CheckCircle2, XCircle, Info } from "lucide-react";
-import { detectWasteWithAI, CATEGORY_INFO } from "../../api/deteccionApi";
+import { detectWasteWithAI, CATEGORY_INFO, checkAIHealth, getAIModelInfo } from "../../api/deteccionApi";
 
 export default function AIProcessor({ capturedImage }) {
   const [processingStatus, setProcessingStatus] = useState("ready");
   const [detectionResults, setDetectionResults] = useState(null);
   const [errorInfo, setErrorInfo] = useState(null);
+  const [aiStatus, setAiStatus] = useState({ engine: null, message: null, details: null });
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
@@ -20,6 +21,33 @@ export default function AIProcessor({ capturedImage }) {
     }
   };
 
+  // Obtener estado del motor IA y detalles del modelo al montar
+  useEffect(() => {
+    const fetchAIStatus = async () => {
+      const health = await checkAIHealth();
+      const info = await getAIModelInfo();
+      if (health.success) {
+        const data = health.data;
+        setAiStatus({
+          engine: data.engine,
+          message: data.message || "Servicio IA",
+          details: data,
+        });
+      } else {
+        setAiStatus({ engine: null, message: `Error: ${health.error}`, details: null });
+      }
+
+      // Merge minimal info
+      if (info.success) {
+        setAiStatus((prev) => ({
+          ...prev,
+          details: { ...(prev.details || {}), model: info.data?.model },
+        }));
+      }
+    };
+    fetchAIStatus();
+  }, []);
+
   const handleStartProcessing = async () => {
     if (!capturedImage) {
       setErrorInfo({
@@ -31,12 +59,28 @@ export default function AIProcessor({ capturedImage }) {
       return;
     }
 
+    // Pre-chequeo: si motor local sin pesos, evitar llamada
+    if (aiStatus.engine === 'local' && aiStatus.details && aiStatus.details.weights_exists === false) {
+      setErrorInfo({
+        type: "error",
+        message: "El motor local Ultralytics no tiene pesos configurados (AI_WEIGHTS).",
+        suggestions: [
+          "Configura la variable AI_WEIGHTS apuntando al archivo .pt",
+          "Reinicia el backend tras configurar los pesos",
+          "Usa Roboflow (AI_ENGINE=roboflow) temporalmente si no tienes pesos locales"
+        ]
+      });
+      setProcessingStatus("error");
+      return;
+    }
+
     setProcessingStatus("processing");
     setErrorInfo(null);
     setDetectionResults(null);
 
     try {
-      console.log("🚀 Iniciando análisis con Roboflow...");
+      console.log("🚀 Iniciando análisis con",
+        aiStatus.engine === 'local' ? 'Ultralytics (motor local)' : 'Roboflow');
       
       // ✅ LLAMADA REAL A LA API
       const result = await detectWasteWithAI(capturedImage);
@@ -159,8 +203,23 @@ export default function AIProcessor({ capturedImage }) {
           Centro de Procesamiento IA
         </h3>
         <p style={{ margin: 0, fontSize: '14px', color: '#6b7280', fontWeight: '500' }}>
-          Análisis en tiempo real con Roboflow Workflow
+          {aiStatus.engine === "local" ? "Motor Local Ultralytics" : "Roboflow Workflow"}
         </p>
+        {aiStatus.engine && (
+          <div style={{
+            marginTop: '8px',
+            display: 'inline-flex', alignItems: 'center', gap: '8px',
+            padding: '8px 12px', borderRadius: '8px',
+            backgroundColor: '#f3f4f6', border: '1px solid #e5e7eb',
+            fontSize: '12px', color: '#374151'
+          }}>
+            <span style={{ fontWeight: 700 }}>Motor:</span>
+            <span>{aiStatus.engine === 'local' ? 'Local (Ultralytics)' : 'Roboflow'}</span>
+            {aiStatus.details?.weights_exists === false && (
+              <span style={{ color: '#b91c1c' }}>• Pesos no encontrados</span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ÁREA DE IMAGEN */}
@@ -264,7 +323,11 @@ export default function AIProcessor({ capturedImage }) {
             fontSize: '13px', color: '#6b7280', border: '1px solid #e5e7eb'
           }}>
             <AlertCircle size={16} />
-            <span style={{ fontWeight: '500' }}>Modelo: Roboflow Workflow - Clasificador de Residuos</span>
+            <span style={{ fontWeight: '500' }}>
+              {aiStatus.engine === 'local'
+                ? 'Modelo: Ultralytics YOLO (clasificación local)'
+                : 'Modelo: Roboflow Workflow - Clasificador de Residuos'}
+            </span>
           </div>
         </div>
       </div>

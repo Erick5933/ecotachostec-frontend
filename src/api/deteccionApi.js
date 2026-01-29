@@ -62,27 +62,20 @@ export const CATEGORY_INFO = {
 export const detectWasteWithAI = async (imagen) => {
   try {
     console.log("🚀 [detectWasteWithAI] Iniciando detección...");
-
-    const formData = new FormData();
-
-    // Convertir imagen base64 a blob si es necesario
-    if (typeof imagen === "string") {
-      console.log("📸 [detectWasteWithAI] Convirtiendo base64 a blob...");
-      const blob = await fetch(imagen).then((r) => r.blob());
-      formData.append("imagen", blob, "captura.jpg");
-    } else {
-      formData.append("imagen", imagen);
-    }
-
     console.log(`📡 [detectWasteWithAI] POST ${DETECCION_ENDPOINTS.AI_DETECT}`);
 
-    const { data } = await axiosInstance.post(
-      DETECCION_ENDPOINTS.AI_DETECT,
-      formData,
-      {
-        headers: { "Content-Type": "multipart/form-data" },
-      }
-    );
+    let data;
+    // Si viene en base64 (data:image/...), enviar como JSON directo
+    if (typeof imagen === "string" && imagen.startsWith("data:image/")) {
+      const resp = await axiosInstance.post(DETECCION_ENDPOINTS.AI_DETECT, { imagen });
+      data = resp.data;
+    } else {
+      // Enviar como multipart sin forzar Content-Type (axios agrega boundary)
+      const formData = new FormData();
+      formData.append("imagen", imagen);
+      const resp = await axiosInstance.post(DETECCION_ENDPOINTS.AI_DETECT, formData);
+      data = resp.data;
+    }
 
     console.log("✅ [detectWasteWithAI] Respuesta exitosa:", data);
 
@@ -125,6 +118,19 @@ export const checkAIHealth = async () => {
   }
 };
 
+// ==================== IA MODEL INFO ====================
+export const getAIModelInfo = async () => {
+  try {
+    console.log("🔎 [getAIModelInfo] Obteniendo información del modelo IA...");
+    const { data } = await axiosInstance.get(DETECCION_ENDPOINTS.AI_INFO);
+    console.log("✅ [getAIModelInfo] Info recibida:", data);
+    return { success: true, data };
+  } catch (error) {
+    console.error("❌ [getAIModelInfo] Error:", error);
+    return { success: false, error: error.message };
+  }
+};
+
 // ==================== EXPORT DEFAULT ====================
 export default {
   detectWasteWithAI,
@@ -136,4 +142,5 @@ export default {
   updateDeteccion,
   deleteDeteccion,
   checkAIHealth,
+  getAIModelInfo,
 };

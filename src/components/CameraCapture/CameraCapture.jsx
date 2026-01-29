@@ -6,6 +6,7 @@ import {
   detectWasteWithAI,
   isValidImageFormat,
   CATEGORY_INFO,
+  checkAIHealth,
 } from "../../api/deteccionApi";
 
 export default function CameraCapture({ onCapture, onClose }) {
@@ -147,6 +148,18 @@ const handleSendImage = async () => {
   if (!capturedImage) {
     setError("No hay imagen para analizar");
     return;
+  }
+
+  // Pre-chequeo: si motor local sin pesos, evitar llamada
+  try {
+    const health = await checkAIHealth();
+    if (health.success && health.data?.engine === 'local' && health.data?.weights_exists === false) {
+      setError("El motor local Ultralytics no tiene pesos configurados (AI_WEIGHTS). Configura los pesos antes de analizar.");
+      return;
+    }
+  } catch (e) {
+    // Si el health falla, continuamos pero mostramos advertencia
+    console.warn("Advertencia: no se pudo verificar el estado del motor IA", e);
   }
 
   setLoading(true);
