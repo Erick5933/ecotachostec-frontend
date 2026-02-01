@@ -1,6 +1,11 @@
 import axios from "axios";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+// Base de API:
+// - Desarrollo: usamos el proxy de Vite (/api) para evitar CORS
+// - Producción: apuntamos por defecto al dominio en la nube
+const API_URL = import.meta.env.DEV
+  ? "/api"
+  : (import.meta.env.VITE_API_URL || "https://ecotachoste.me/api");
 
 const axiosInstance = axios.create({
   baseURL: API_URL,
