@@ -1,4 +1,4 @@
-name: Deploy Frontend to Droplet
+name: Deploy Frontend to Production
 
 on:
   push:
@@ -13,85 +13,46 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Deploy to server
+        uses: appleboy/ssh-action@master
         with:
-          node-version: '18'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build frontend
-        run: npm run build
-        env:
-          NODE_ENV: production
-
-      - name: Deploy to Droplet
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.DROPLET_IP }}
-          username: ${{ secrets.DROPLET_USER }}
-          key: ${{ secrets.DROPLET_SSH_KEY }}
-          port: 22
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # Create backup of current deployment
-            if [ -d "/var/www/ecotachostec-frontend" ]; then
-              sudo cp -r /var/www/ecotachostec-frontend /var/www/ecotachostec-frontend.backup.$(date +%Y%m%d_%H%M%S)
-            fi
+            cd ~/ecotachos-automation/ecotachostec-frontend2
             
-            # Create directory if it doesn't exist
-            sudo mkdir -p /var/www/ecotachostec-frontend
+            echo "📥 Pulling latest changes..."
+            git pull origin main || git pull origin master
             
-            # Set proper permissions
-            sudo chown -R $USER:$USER /var/www/ecotachostec-frontend
-
-      - name: Copy build files to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.DROPLET_IP }}
-          username: ${{ secrets.DROPLET_USER }}
-          key: ${{ secrets.DROPLET_SSH_KEY }}
-          port: 22
-          source: "dist/*"
-          target: "/var/www/ecotachostec-frontend"
-          strip_components: 1
-          overwrite: true
-
-      - name: Restart Nginx
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.DROPLET_IP }}
-          username: ${{ secrets.DROPLET_USER }}
-          key: ${{ secrets.DROPLET_SSH_KEY }}
-          port: 22
-          script: |
-            # Set proper permissions
-            sudo chown -R www-data:www-data /var/www/ecotachostec-frontend
-            sudo chmod -R 755 /var/www/ecotachostec-frontend
+            echo "🔨 Building frontend..."
+            cd ~/ecotachos-automation
+            docker-compose build frontend
             
-            # Test nginx configuration
-            sudo nginx -t
+            echo "🔄 Restarting frontend..."
+            docker-compose up -d frontend
             
-            # Reload nginx
-            sudo systemctl reload nginx
+            echo "⏳ Waiting for nginx..."
+            sleep 5
             
-            echo "✅ Frontend deployed successfully!"
+            echo "📊 Container status:"
+            docker-compose ps
+            
+            echo "🧹 Cleaning up..."
+            docker image prune -f
+            
+            echo "✅ Deployment completed!"
 
       - name: Verify deployment
-        uses: appleboy/ssh-action@v1.0.0
+        uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.DROPLET_IP }}
-          username: ${{ secrets.DROPLET_USER }}
-          key: ${{ secrets.DROPLET_SSH_KEY }}
-          port: 22
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # Check if nginx is running
-            sudo systemctl status nginx --no-pager
-            
-            # Test the endpoint
-            curl -I http://localhost/ || echo "⚠️ Warning: Could not verify frontend"
-            
-            echo "🚀 Deployment completed at $(date)"
+            sleep 5
+            curl -k -f https://localhost || echo "HTTPS check failed"
+            cd ~/ecotachos-automation
+            docker-compose logs --tail=30 frontend

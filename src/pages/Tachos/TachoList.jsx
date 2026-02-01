@@ -11,6 +11,7 @@ const TachoList = () => {
   const [tachos, setTachos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedTachoId, setSelectedTachoId] = useState(null);
 
   // Función para obtener ubicación aproximada desde coordenadas
   const getUbicacionFromCoords = (lat, lon) => {
@@ -125,6 +126,35 @@ const TachoList = () => {
       <div className="loading-container">
         <div className="spinner"></div>
         <p className="loading-text">Cargando tachos...</p>
+      </div>
+    );
+  }
+
+  // SI ESTÁ SELECCIONADO UN TACHO, MOSTRAR SOLO EL DETALLE
+  if (selectedTachoId) {
+    return (
+      <div className="admin-page">
+        {/* Botón Volver */}
+        <div style={{ marginBottom: "1.5rem" }}>
+          <button
+            onClick={() => setSelectedTachoId(null)}
+            style={{
+              background: "none",
+              border: "none",
+              color: "#10b981",
+              cursor: "pointer",
+              fontSize: "0.95rem",
+              fontWeight: "600",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              padding: 0
+            }}
+          >
+            ← Volver a la lista de Tachos
+          </button>
+        </div>
+        <TachoDetailView tachoId={selectedTachoId} />
       </div>
     );
   }
@@ -395,13 +425,13 @@ const TachoList = () => {
                     </td>
                     <td>
                       <div className="action-buttons">
-                        <Link
-                          to={`/tachos/${t.id}`}
+                        <button
+                          onClick={() => setSelectedTachoId(t.id)}
                           className="btn-icon btn-view"
                           title="Ver detalles"
                         >
                           <Eye className="icon-md" />
-                        </Link>
+                        </button>
                         <Link
                           to={`/tachos/editar/${t.id}`}
                           className="btn-icon btn-edit"
@@ -449,5 +479,378 @@ const BuildingIcon = () => (
     <path d="M3 21h18M9 8h1M9 12h1M9 16h1M14 8h1M14 12h1M14 16h1M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16" />
   </svg>
 );
+
+// Componente para visualizar detalle del tacho
+const TachoDetailView = ({ tachoId }) => {
+  const [tacho, setTacho] = useState(null);
+  const [detecciones, setDetecciones] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingDetecciones, setLoadingDetecciones] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const loadTacho = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        console.log("Cargando tacho con ID:", tachoId);
+        const res = await api.get(`/tachos/${tachoId}/`);
+        console.log("Tacho cargado:", res.data);
+        setTacho(res.data);
+        
+        // Cargar detecciones
+        await loadDetecciones(tachoId);
+      } catch (e) {
+        console.error("Error cargando tacho:", e);
+        setError("Error al cargar el tacho");
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadTacho();
+  }, [tachoId]);
+
+  const loadDetecciones = async (id) => {
+    setLoadingDetecciones(true);
+    try {
+      const res = await api.get(`/detecciones/`);
+      let todas = res.data || [];
+      
+      // Si es un objeto con 'results', extraer ese array
+      if (todas.results) {
+        todas = todas.results;
+      }
+      
+      // Filtrar por tacho - el campo tacho contiene el ID del tacho
+      const deteccionesFiltradas = todas.filter(det => {
+        let tachoId = det.tacho;
+        // Si tacho es un objeto, obtener el id
+        if (typeof tachoId === 'object' && tachoId !== null) {
+          tachoId = tachoId.id;
+        }
+        return tachoId == id;
+      });
+      
+      console.log("Detecciones filtradas para tacho", id, ":", deteccionesFiltradas.length);
+      setDetecciones(deteccionesFiltradas || []);
+    } catch (e) {
+      console.error("Error cargando detecciones:", e);
+      setDetecciones([]);
+    } finally {
+      setLoadingDetecciones(false);
+    }
+  };
+
+  const getNivelColor = (nivel) => {
+    const nivelValue = nivel || 0;
+    if (nivelValue >= 80) return '#ef4444';
+    if (nivelValue >= 50) return '#f59e0b';
+    return '#10b981';
+  };
+
+  const formatFecha = (fechaString) => {
+    if (!fechaString) return 'N/D';
+    const fecha = new Date(fechaString);
+    return fecha.toLocaleDateString('es-EC', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  if (loading) {
+    console.log("Estado: Cargando...");
+    return (
+      <div className="loading-container">
+        <div className="spinner"></div>
+        <p className="loading-text">Cargando detalles...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    console.log("Error:", error);
+    return <div style={{ color: "red", padding: "1rem" }}>Error: {error}</div>;
+  }
+
+  if (!tacho) {
+    console.log("No hay tacho");
+    return <p>No se encontró la información del tacho</p>;
+  }
+
+  return (
+    <div className="admin-page">
+      {/* Header Principal */}
+      <div style={{
+        background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+        padding: "2rem",
+        borderRadius: "0.75rem",
+        marginBottom: "2rem",
+        boxShadow: "0 4px 12px rgba(16, 185, 129, 0.2)",
+        color: "white"
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
+          <div style={{
+            background: "rgba(255, 255, 255, 0.2)",
+            padding: "1rem",
+            borderRadius: "0.5rem",
+            fontSize: "2rem"
+          }}>
+            🗑️
+          </div>
+          <div>
+            <h2 style={{ margin: 0, fontSize: "2rem", fontWeight: "700" }}>
+              {tacho.nombre}
+            </h2>
+            <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.95rem", opacity: 0.9 }}>
+              Código: <strong>{tacho.codigo}</strong> • {tacho.tipo === 'personal' ? 'Personal' : 'Público'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+        gap: "1rem",
+        marginBottom: "2rem"
+      }}>
+        <div style={{
+          background: "white",
+          padding: "1.5rem",
+          borderRadius: "0.75rem",
+          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
+          borderLeft: "4px solid #10b981"
+        }}>
+          <p style={{ margin: 0, fontSize: "0.75rem", fontWeight: "600", color: "#6b7280", textTransform: "uppercase" }}>Estado</p>
+          <p style={{ margin: "0.5rem 0 0 0", fontSize: "1.25rem", fontWeight: "700", color: "#111827" }}>
+            {tacho.estado === 'activo' ? '✓ Activo' : tacho.estado === 'mantenimiento' ? '⚠ Mantenimiento' : '✗ Fuera Servicio'}
+          </p>
+        </div>
+        
+        <div style={{
+          background: "white",
+          padding: "1.5rem",
+          borderRadius: "0.75rem",
+          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
+          borderLeft: "4px solid #f59e0b"
+        }}>
+          <p style={{ margin: 0, fontSize: "0.75rem", fontWeight: "600", color: "#6b7280", textTransform: "uppercase" }}>Nivel Llenado</p>
+          <p style={{ margin: "0.5rem 0 0 0", fontSize: "1.25rem", fontWeight: "700", color: getNivelColor(tacho.nivel_llenado) }}>
+            {tacho.nivel_llenado || 0}%
+          </p>
+        </div>
+
+        <div style={{
+          background: "white",
+          padding: "1.5rem",
+          borderRadius: "0.75rem",
+          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
+          borderLeft: "4px solid #3b82f6"
+        }}>
+          <p style={{ margin: 0, fontSize: "0.75rem", fontWeight: "600", color: "#6b7280", textTransform: "uppercase" }}>Detecciones</p>
+          <p style={{ margin: "0.5rem 0 0 0", fontSize: "1.25rem", fontWeight: "700", color: "#111827" }}>
+            {detecciones.length}
+          </p>
+        </div>
+      </div>
+
+      {/* Grid de contenido */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem", marginBottom: "2rem" }}>
+        {/* Información General */}
+        <div style={{
+          background: "white",
+          padding: "1.5rem",
+          borderRadius: "0.75rem",
+          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)"
+        }}>
+          <h3 style={{ fontSize: "1.1rem", fontWeight: "600", marginBottom: "1rem", color: "#111827", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            📋 Información General
+          </h3>
+          <div style={{ display: "grid", gap: "1rem" }}>
+            <div>
+              <p style={{ margin: "0 0 0.5rem 0", fontSize: "0.75rem", fontWeight: "600", color: "#6b7280", textTransform: "uppercase" }}>Código</p>
+              <p style={{ margin: 0, fontSize: "1rem", fontWeight: "700", color: "#111827" }}>{tacho.codigo}</p>
+            </div>
+            <div>
+              <p style={{ margin: "0 0 0.5rem 0", fontSize: "0.75rem", fontWeight: "600", color: "#6b7280", textTransform: "uppercase" }}>Nombre</p>
+              <p style={{ margin: 0, fontSize: "1rem", fontWeight: "700", color: "#111827" }}>{tacho.nombre}</p>
+            </div>
+            <div>
+              <p style={{ margin: "0 0 0.5rem 0", fontSize: "0.75rem", fontWeight: "600", color: "#6b7280", textTransform: "uppercase" }}>Empresa</p>
+              <p style={{ margin: 0, fontSize: "1rem", fontWeight: "700", color: "#111827" }}>{tacho.empresa_nombre || 'N/A'}</p>
+            </div>
+            <div>
+              <p style={{ margin: "0 0 0.5rem 0", fontSize: "0.75rem", fontWeight: "600", color: "#6b7280", textTransform: "uppercase" }}>Tipo</p>
+              <p style={{ margin: 0, fontSize: "1rem", fontWeight: "700", color: tacho.tipo === 'personal' ? '#3b82f6' : '#10b981' }}>
+                {tacho.tipo === 'personal' ? 'Personal' : 'Público'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Ubicación */}
+        <div style={{
+          background: "white",
+          padding: "1.5rem",
+          borderRadius: "0.75rem",
+          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)"
+        }}>
+          <h3 style={{ fontSize: "1.1rem", fontWeight: "600", marginBottom: "1rem", color: "#111827", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            📍 Ubicación
+          </h3>
+          <div style={{ display: "grid", gap: "1rem" }}>
+            <div>
+              <p style={{ margin: "0 0 0.5rem 0", fontSize: "0.75rem", fontWeight: "600", color: "#6b7280", textTransform: "uppercase" }}>Coordenadas</p>
+              <p style={{ margin: 0, fontSize: "0.9rem", fontWeight: "600", color: "#111827", fontFamily: "monospace", background: "#f3f4f6", padding: "0.5rem", borderRadius: "0.375rem" }}>
+                {tacho.ubicacion_lat}, {tacho.ubicacion_lon}
+              </p>
+            </div>
+            <div>
+              <p style={{ margin: "0 0 0.5rem 0", fontSize: "0.75rem", fontWeight: "600", color: "#6b7280", textTransform: "uppercase" }}>Cantón</p>
+              <p style={{ margin: 0, fontSize: "1rem", fontWeight: "700", color: "#111827" }}>{tacho.canton || 'N/A'}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Nivel de Llenado - Barra grande */}
+      <div style={{
+        background: "white",
+        padding: "1.5rem",
+        borderRadius: "0.75rem",
+        marginBottom: "2rem",
+        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)"
+      }}>
+        <h3 style={{ fontSize: "1.1rem", fontWeight: "600", marginBottom: "1rem", color: "#111827", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          📊 Nivel de Llenado
+        </h3>
+        <div style={{
+          width: "100%",
+          height: "40px",
+          backgroundColor: "#e5e7eb",
+          borderRadius: "0.5rem",
+          overflow: "hidden"
+        }}>
+          <div
+            style={{
+              width: `${tacho.nivel_llenado || 0}%`,
+              height: "100%",
+              backgroundColor: getNivelColor(tacho.nivel_llenado),
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "white",
+              fontWeight: "700",
+              fontSize: "0.95rem",
+              transition: "width 0.3s ease"
+            }}
+          >
+            {tacho.nivel_llenado || 0}%
+          </div>
+        </div>
+      </div>
+
+      {/* Descripción */}
+      {tacho.descripcion && (
+        <div style={{
+          background: "white",
+          padding: "1.5rem",
+          borderRadius: "0.75rem",
+          marginBottom: "2rem",
+          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)"
+        }}>
+          <h3 style={{ fontSize: "1.1rem", fontWeight: "600", marginBottom: "1rem", color: "#111827", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            📝 Descripción
+          </h3>
+          <p style={{ margin: 0, lineHeight: "1.6", color: "#4b5563", fontSize: "0.95rem" }}>
+            {tacho.descripcion}
+          </p>
+        </div>
+      )}
+
+      {/* Detecciones IA */}
+      <div style={{
+        background: "white",
+        padding: "1.5rem",
+        borderRadius: "0.75rem",
+        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)"
+      }}>
+        <h3 style={{ fontSize: "1.1rem", fontWeight: "600", marginBottom: "1rem", color: "#111827", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          🤖 Detecciones IA
+          <span style={{
+            background: "#3b82f6",
+            color: "white",
+            padding: "0.25rem 0.75rem",
+            borderRadius: "9999px",
+            fontSize: "0.75rem",
+            fontWeight: "700"
+          }}>
+            {detecciones.length}
+          </span>
+        </h3>
+
+        {loadingDetecciones ? (
+          <div style={{ textAlign: "center", padding: "2rem" }}>
+            <div className="spinner" style={{ marginBottom: "1rem" }}></div>
+            <p>Cargando detecciones...</p>
+          </div>
+        ) : detecciones.length === 0 ? (
+          <div style={{
+            textAlign: "center",
+            padding: "2rem",
+            background: "#f3f4f6",
+            borderRadius: "0.5rem",
+            color: "#6b7280"
+          }}>
+            <p>No hay detecciones registradas para este tacho</p>
+          </div>
+        ) : (
+          <div style={{
+            display: "grid",
+            gap: "1rem",
+            maxHeight: "400px",
+            overflowY: "auto"
+          }}>
+            {detecciones.map((det, idx) => (
+              <div key={idx} style={{
+                background: "#f9fafb",
+                padding: "1rem",
+                borderRadius: "0.5rem",
+                borderLeft: "4px solid #3b82f6",
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr",
+                gap: "1rem"
+              }}>
+                <div>
+                  <p style={{ margin: 0, fontSize: "0.75rem", fontWeight: "600", color: "#6b7280", textTransform: "uppercase" }}>Clasificación</p>
+                  <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.95rem", fontWeight: "600", color: "#111827" }}>
+                    {det.clasificacion || 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontSize: "0.75rem", fontWeight: "600", color: "#6b7280", textTransform: "uppercase" }}>Confianza IA</p>
+                  <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.95rem", fontWeight: "600", color: "#3b82f6" }}>
+                    {det.confianza_ia ? `${det.confianza_ia}%` : 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontSize: "0.75rem", fontWeight: "600", color: "#6b7280", textTransform: "uppercase" }}>Fecha</p>
+                  <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.85rem", fontWeight: "600", color: "#111827" }}>
+                    {formatFecha(det.created_at)}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 
 export default TachoList;
