@@ -43,6 +43,8 @@ const TachoList = () => {
       }
     }
 
+    //prueba de cambio
+
     // Si no encuentra coincidencia exacta
     if (latNum > 0) return "Norte";
     if (latNum < -2) return "Sur";
