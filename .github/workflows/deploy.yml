@@ -39,10 +39,7 @@ jobs:
             
             echo "📊 Container status:"
             docker-compose ps
-            
-            echo "🧹 Cleaning up..."
-            docker image prune -a -f --filter "until=24h"
-            
+          
             echo "✅ Deployment completed!"
 
       - name: Verify deployment
