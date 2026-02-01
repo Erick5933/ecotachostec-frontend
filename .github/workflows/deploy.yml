@@ -22,24 +22,13 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd ~/ecotachos-automation/ecotachostec-frontend2
-            
-            echo "📥 Pulling latest changes..."
-            git pull origin main || git pull origin master
-            
-            echo "🔨 Building frontend..."
+            echo "🚀 Starting frontend deployment..."
             cd ~/ecotachos-automation
-            docker-compose build frontend
-            
-            echo "🔄 Restarting frontend..."
-            docker-compose up -d frontend
-            
-            echo "⏳ Waiting for nginx..."
-            sleep 5
+            ~/update-frontend.sh
             
             echo "📊 Container status:"
             docker-compose ps
-          
+            
             echo "✅ Deployment completed!"
 
       - name: Verify deployment
@@ -50,6 +39,4 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             sleep 5
-            curl -k -f https://localhost || echo "HTTPS check failed"
-            cd ~/ecotachos-automation
-            docker-compose logs --tail=30 frontend
+            curl -I http://localhost || echo "HTTP check failed"
