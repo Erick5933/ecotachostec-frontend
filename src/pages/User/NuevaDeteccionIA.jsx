@@ -77,18 +77,9 @@ const NuevaDeteccionIA = ({
         const todosLosTachos = response.data.results || response.data || [];
 
         // Filtrar tachos relacionados al usuario actual
+        // Solo muestra tachos donde el usuario es el propietario/encargado
         const tachosRelacionados = todosLosTachos.filter(tacho => {
-          // Tachos donde el usuario es propietario (personales)
-          if (tacho.propietario === user.id) {
-            return true;
-          }
-
-          // Tachos públicos donde el usuario es encargado
-          if (tacho.tipo === "publico" && tacho.propietario === user.id) {
-            return true;
-          }
-
-          return false;
+          return tacho.propietario === user.id;
         });
 
         // Ordenar por nombre
@@ -322,12 +313,18 @@ const NuevaDeteccionIA = ({
 
       if (response.status === 201) {
         console.log("Detección guardada exitosamente:", response.data);
-        await api.post("/iot/esp32/detect/", {
-        tacho_id: tachoSeleccionado.id,
-          clasificacion: aiResult.category  // 👈 CLAVE
-
-
-        });
+        // Notificación opcional al IoT: evitar duplicar detecciones
+        // Controlado por variable de entorno VITE_NOTIFY_IOT="true"
+        if (import.meta.env.VITE_NOTIFY_IOT === "true") {
+          try {
+            await api.post("/iot/esp32/detect/", {
+              tacho_id: tachoSeleccionado.id,
+              clasificacion: aiResult.category
+            });
+          } catch (iotError) {
+            console.warn("Notificación IoT falló (omitida):", iotError?.message);
+          }
+        }
         setGuardadoExitoso(true);
 
         // Llamar a la función onNewDetection si existe

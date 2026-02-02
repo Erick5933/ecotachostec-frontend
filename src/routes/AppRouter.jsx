@@ -143,6 +143,16 @@ export default function AppRouter() {
               </ProtectedRoute>
             }
           />
+
+          {/* Detalle de Detección para Usuarios (usa mismo componente que admin) */}
+          <Route
+            path="/portal/detecciones/:id"
+            element={
+              <ProtectedRoute>
+                <DeteccionDetail />
+              </ProtectedRoute>
+            }
+          />
         </Route>
 
         {/* ======================== */}

@@ -33,6 +33,7 @@ import {
   Database,
   Hash
 } from "lucide-react";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import api from "../../api/axiosConfig";
 import "././TachoDetailUser.css";
 
@@ -316,12 +317,12 @@ const TachoDetail = () => {
 
   return (
     <div className="tacho-detail-container">
-      {/* Header para usuarios normales */}
+      {/* Header elegante */}
       <div className="tacho-detail-header">
         <div className="header-top">
           <Link to="/user" className="header-back">
             <ArrowLeft className="icon-sm" />
-            Volver al Panel
+            Volver
           </Link>
           <div className="header-title-section">
             <h1 className="header-title">
@@ -330,6 +331,8 @@ const TachoDetail = () => {
             </h1>
             <div className="header-subtitle">
               <span><Tag className="icon-sm" /> {tacho.codigo}</span>
+              <span>•</span>
+              <span>ID: #{tacho.id}</span>
               <span>•</span>
               <span className={`status-badge ${getEstadoClass(tacho.estado)}`}>
                 <span className="status-indicator"></span>
@@ -347,289 +350,334 @@ const TachoDetail = () => {
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Badge de tipo de tacho */}
-        <div className="tacho-type-badge">
-          {esMiTacho ? (
-            <div className="badge-user">
-              <User size={14} />
-              <span>Mi Tacho Personal</span>
+      {/* Grid principal */}
+      <div className="detail-grid">
+        {/* Información del Tacho */}
+        <div className="detail-card">
+          <div className="card-header">
+            <h3 className="card-title">
+              <Trash2 className="card-title-icon" />
+              Información del Tacho
+            </h3>
+          </div>
+          <div className="card-body">
+            <div className="info-grid">
+              <div className="info-item">
+                <span className="info-label">
+                  <Tag className="info-label-icon" />
+                  Código
+                </span>
+                <span className="info-value">{tacho.codigo}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">
+                  <Activity className="info-label-icon" />
+                  Estado
+                </span>
+                <span className="info-value">
+                  <span className={`status-badge ${getEstadoClass(tacho.estado)}`}>
+                    <span className="status-indicator"></span>
+                    {getEstadoText(tacho.estado)}
+                  </span>
+                </span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">
+                  <Battery className="info-label-icon" />
+                  Nivel de Llenado
+                </span>
+                <div className="info-value">
+                  <div className="progress-bar">
+                    <div
+                      className="progress-fill"
+                      style={{
+                        width: `${tacho.nivel_llenado || 0}%`,
+                        backgroundColor: getNivelColor(tacho.nivel_llenado)
+                      }}
+                    >
+                      <span className="progress-text">{tacho.nivel_llenado || 0}%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="info-item">
+                <span className="info-label">
+                  <Calendar className="info-label-icon" />
+                  Fecha de Registro
+                </span>
+                <span className="info-value">{formatFecha(tacho.created_at, true)}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">
+                  <MapPin className="info-label-icon" />
+                  Coordenadas
+                </span>
+                <span className="info-value" style={{ fontFamily: "monospace" }}>
+                  {lat.toFixed(6)}, {lon.toFixed(6)}
+                </span>
+              </div>
+              {tacho.canton_nombre && (
+                <div className="info-item">
+                  <span className="info-label">
+                    <MapPin className="info-label-icon" />
+                    Cantón
+                  </span>
+                  <span className="info-value">{tacho.canton_nombre}</span>
+                </div>
+              )}
+
+              {/* Tipo de Tacho */}
+              <div className="info-item">
+                <span className="info-label">
+                  <Activity className="info-label-icon" />
+                  Tipo
+                </span>
+                <span className="info-value">
+                  <span className={`badge ${tacho.tipo === 'personal' ? 'badge-info' : 'badge-warning'}`}>
+                    {tacho.tipo === 'personal' ? 'Personal' : 'Público / Empresa'}
+                  </span>
+                </span>
+              </div>
+
+              {/* Información de Empresa (solo para tachos públicos) */}
+              {tacho.tipo === 'publico' && tacho.empresa_nombre && (
+                <div className="info-item">
+                  <span className="info-label">
+                    <Building className="info-label-icon" />
+                    Empresa
+                  </span>
+                  <span className="info-value">{tacho.empresa_nombre}</span>
+                </div>
+              )}
+
+              {distancia !== null && (
+                <div className="info-item">
+                  <span className="info-label">
+                    <Navigation className="info-label-icon" />
+                    Distancia desde tu ubicación
+                  </span>
+                  <span className="info-value">{distancia.toFixed(1)} km</span>
+                </div>
+              )}
+
+              {tacho.ultima_deteccion && (
+                <div className="info-item">
+                  <span className="info-label">
+                    <Clock className="info-label-icon" />
+                    Última Detección
+                  </span>
+                  <span className="info-value">{formatFecha(tacho.ultima_deteccion, true)}</span>
+                </div>
+              )}
             </div>
-          ) : esTachoEmpresa ? (
-            <div className="badge-empresa">
-              <Building size={14} />
-              <span>Empresa: {tacho.empresa_nombre}</span>
+
+            {tacho.descripcion && (
+              <div style={{ marginTop: "1.5rem" }}>
+                <div className="info-item">
+                  <span className="info-label">
+                    <FileText className="info-label-icon" />
+                    Descripción
+                  </span>
+                  <p className="info-value" style={{ marginTop: "0.5rem", fontSize: "0.875rem" }}>
+                    {tacho.descripcion}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Mapa */}
+        <div className="detail-card">
+          <div className="card-header">
+            <h3 className="card-title">
+              <MapPin className="card-title-icon" />
+              Ubicación en Mapa
+            </h3>
+          </div>
+          <div className="card-body">
+            <div className="map-container">
+              <MapContainer
+                center={[lat, lon]}
+                zoom={lat && lon ? 16 : 2}
+                style={{ height: "100%", width: "100%" }}
+              >
+                <TileLayer
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                />
+                {lat && lon && (
+                  <Marker position={[lat, lon]}>
+                    <Popup>
+                      <strong>{tacho.nombre}</strong> <br />
+                      {tacho.tipo === 'publico' && tacho.empresa_nombre && (
+                        <>Empresa: {tacho.empresa_nombre}<br /></>
+                      )}
+                      {lat.toFixed(6)}, {lon.toFixed(6)} <br />
+                      <small>Estado: {getEstadoText(tacho.estado)}</small>
+                    </Popup>
+                  </Marker>
+                )}
+              </MapContainer>
+              <div className="map-actions">
+                <a
+                  href={`https://www.google.com/maps?q=${lat},${lon}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="map-btn"
+                >
+                  <MapPin className="icon-sm" />
+                  Ver en Google Maps
+                </a>
+              </div>
             </div>
-          ) : esTachoPublico ? (
-            <div className="badge-publico">
-              <Globe size={14} />
-              <span>Tacho Público</span>
-            </div>
-          ) : null}
+          </div>
         </div>
       </div>
 
-      {/* Grid principal simplificado para usuarios */}
-      <div className="detail-grid">
-        {/* Información del Tacho - Versión simplificada */}
-        <div className="detail-card">
-          <div className="card-header">
-            <h3 className="card-title">
-              <Layers className="card-title-icon" />
-              Información General
-            </h3>
-          </div>
-          <div className="card-body">
-            <div className="info-grid-simple">
-              <div className="info-item-simple">
-                <div className="info-icon-simple">
-                  <Hash size={20} />
-                </div>
-                <div className="info-content-simple">
-                  <div className="info-label-simple">Código</div>
-                  <div className="info-value-simple">{tacho.codigo}</div>
-                </div>
-              </div>
-
-              <div className="info-item-simple">
-                <div className="info-icon-simple">
-                  <Activity size={20} />
-                </div>
-                <div className="info-content-simple">
-                  <div className="info-label-simple">Estado</div>
-                  <div className="info-value-simple">
-                    <span className={`status-badge ${getEstadoClass(tacho.estado)}`}>
-                      {getEstadoText(tacho.estado)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="info-item-simple">
-                <div className="info-icon-simple">
-                  <Battery size={20} />
-                </div>
-                <div className="info-content-simple">
-                  <div className="info-label-simple">Nivel de Llenado</div>
-                  <div className="info-value-simple">
-                    <div className="progress-bar-simple">
-                      <div
-                        className="progress-fill-simple"
-                        style={{
-                          width: `${tacho.nivel_llenado || 0}%`,
-                          backgroundColor: getNivelColor(tacho.nivel_llenado)
-                        }}
-                      >
-                        <span className="progress-text-simple">{tacho.nivel_llenado || 0}%</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="info-item-simple">
-                <div className="info-icon-simple">
-                  <MapPin size={20} />
-                </div>
-                <div className="info-content-simple">
-                  <div className="info-label-simple">Ubicación</div>
-                  <div className="info-value-simple">{ubicacionTexto}</div>
-                  <div className="info-coords-simple">
-                    {lat.toFixed(6)}, {lon.toFixed(6)}
-                  </div>
-                </div>
-              </div>
-
-              <div className="info-item-simple">
-                <div className="info-icon-simple">
-                  <Calendar size={20} />
-                </div>
-                <div className="info-content-simple">
-                  <div className="info-label-simple">Registro</div>
-                  <div className="info-value-simple">{formatFecha(tacho.created_at, true)}</div>
-                </div>
-              </div>
-
-              <div className="info-item-simple">
-                <div className="info-icon-simple">
-                  <Database size={20} />
-                </div>
-                <div className="info-content-simple">
-                  <div className="info-label-simple">Detecciones</div>
-                  <div className="info-value-simple">{detecciones.length}</div>
-                </div>
-              </div>
-
-              {tacho.empresa_nombre && (
-                <div className="info-item-simple">
-                  <div className="info-icon-simple">
-                    <Building size={20} />
-                  </div>
-                  <div className="info-content-simple">
-                    <div className="info-label-simple">Empresa</div>
-                    <div className="info-value-simple">{tacho.empresa_nombre}</div>
-                  </div>
-                </div>
-              )}
-
-              {tacho.descripcion && (
-                <div className="info-item-simple full-width">
-                  <div className="info-icon-simple">
-                    <FileText size={20} />
-                  </div>
-                  <div className="info-content-simple">
-                    <div className="info-label-simple">Descripción</div>
-                    <div className="info-value-simple">{tacho.descripcion}</div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Acciones rápidas */}
-            <div className="quick-actions-simple">
-              <a
-                href={`https://www.google.com/maps?q=${lat},${lon}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="action-btn"
-              >
-                <MapPin size={16} />
-                Ver en Google Maps
-              </a>
-
-              {distancia !== null && (
-                <div className="distance-info">
-                  <Target size={16} />
-                  <span>A {distancia.toFixed(1)} km de tu ubicación</span>
-                </div>
-              )}
-            </div>
-          </div>
+      {/* Historial de Detecciones */}
+      <div className="detection-history">
+        <div className="card-header">
+          <h3 className="card-title">
+            <History className="card-title-icon" />
+            Historial de Detecciones IA
+            <span className="badge" style={{ marginLeft: "0.75rem", background: "#3b82f6" }}>
+              {detecciones.length}
+            </span>
+          </h3>
         </div>
-
-        {/* Información de Detecciones */}
-        <div className="detail-card">
-          <div className="card-header">
-            <h3 className="card-title">
-              <Brain className="card-title-icon" />
-              Detecciones IA
-              <span className="badge" style={{ marginLeft: "0.75rem", background: "#3b82f6" }}>
-                {detecciones.length}
-              </span>
-            </h3>
-          </div>
-          <div className="card-body">
-            {loadingDetecciones ? (
-              <div style={{ padding: "2rem", textAlign: "center" }}>
-                <div className="spinner spinner-sm"></div>
-                <p className="loading-text">
-                  Cargando detecciones...
-                </p>
-              </div>
-            ) : detecciones.length === 0 ? (
-              <div className="empty-state">
-                <Brain className="empty-state-icon" size={48} />
-                <h3>No hay detecciones</h3>
-                <p>Este tacho no tiene detecciones de IA registradas</p>
-              </div>
-            ) : (
-              <>
-                {/* Estadísticas rápidas */}
-                <div className="stats-grid-sm">
-                  <div className="stat-item">
-                    <div className="stat-value">{stats.total}</div>
-                    <div className="stat-label">Total</div>
-                  </div>
-
-                  <div className="stat-item">
-                    <div className="stat-value">{stats.confianzaPromedio}%</div>
-                    <div className="stat-label">Conf. Promedio</div>
-                  </div>
-                  <div className="stat-item">
-                    <div className="stat-value">{stats.tiposUnicos}</div>
-                    <div className="stat-label">Tipos Únicos</div>
-                  </div>
+        <div className="card-body">
+          {loadingDetecciones ? (
+            <div style={{ padding: "2rem", textAlign: "center" }}>
+              <div className="spinner spinner-sm"></div>
+              <p className="loading-text">
+                Cargando detecciones...
+              </p>
+            </div>
+          ) : detecciones.length === 0 ? (
+            <div className="empty-state">
+              <Brain className="empty-state-icon" size={48} />
+              <h3>No hay detecciones</h3>
+              <p>Este tacho no tiene detecciones de IA registradas</p>
+            </div>
+          ) : (
+            <>
+              {/* Mini estadísticas */}
+              <div className="stats-grid-sm">
+                <div className="stat-item">
+                  <div className="stat-value">{stats.total}</div>
+                  <div className="stat-label">Total</div>
                 </div>
-
-                {/* Lista de detecciones recientes */}
-                <div className="detections-list">
-                  <h4 className="list-title">Detecciones Recientes</h4>
-                  {detecciones.slice(0, 5).map((det) => (
-                    <div key={det.id} className="detection-item">
-                      <div className="detection-icon">
-                        {getClasificacionIcon(det.clasificacion)}
-                      </div>
-                      <div className="detection-content">
-                        <div className="detection-header">
-                          <span className="detection-classification">
-                            {getClasificacionText(det.clasificacion)}
-                          </span>
-                          <span className="detection-confidence">
-                            {formatConfianza(det.confianza_ia)}
-                          </span>
-                        </div>
-                        <div className="detection-date">
-                          <Clock size={12} />
-                          {formatFecha(det.created_at, true)}
-                        </div>
-                      </div>
-                      {det.imagen && (
-                        <a
-                          href={det.imagen}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="detection-image-btn"
-                          title="Ver imagen"
-                        >
-                          <ImageIcon size={16} />
-                        </a>
-                      )}
-                    </div>
-                  ))}
+                <div className="stat-item">
+                  <div className="stat-value">{stats.altaConfianza}</div>
+                  <div className="stat-label">Alta Confianza</div>
                 </div>
+                <div className="stat-item">
+                  <div className="stat-value">{stats.confianzaPromedio}%</div>
+                  <div className="stat-label">Conf. Promedio</div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-value">{stats.tiposUnicos}</div>
+                  <div className="stat-label">Tipos Únicos</div>
+                </div>
+              </div>
 
-                {/* Distribución */}
-                <div className="distribution-simple">
-                  <h4 className="list-title">Distribución de Residuos</h4>
-                  <div className="distribution-bars">
-                    {Object.entries(stats.distribucion)
-                      .filter(([tipo, count]) => count > 0)
-                      .map(([tipo, count]) => {
-                        const porcentaje = detecciones.length > 0 ? ((count / detecciones.length) * 100).toFixed(1) : 0;
-                        return (
-                          <div key={tipo} className="distribution-bar-item">
-                            <div className="bar-label">
-                              {getClasificacionText(tipo)}
-                              <span className="bar-count">({count})</span>
-                            </div>
-                            <div className="bar-container">
-                              <div
-                                className="bar-fill"
-                                style={{
-                                  width: `${porcentaje}%`,
-                                  backgroundColor: tipo === 'organico' ? '#10b981' :
-                                                 tipo === 'inorganico' ? '#3b82f6' :
-                                                 tipo === 'reciclable' ? '#f59e0b' : '#6b7280'
-                                }}
-                              />
-                            </div>
-                            <div className="bar-percentage">{porcentaje}%</div>
+              {/* Tabla */}
+              <div className="table-responsive">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Clasificación</th>
+                      <th>Confianza IA</th>
+                      <th>Fecha</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detecciones.map((det) => (
+                      <tr key={det.id}>
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                            {getClasificacionIcon(det.clasificacion)}
+                            <span className={`badge ${getClasificacionBadgeClass(det.clasificacion)}`}>
+                              {getClasificacionText(det.clasificacion)}
+                            </span>
                           </div>
-                        );
-                      })}
-                  </div>
-                </div>
+                        </td>
+                        <td>
+                          <div className="confidence-bar-sm">
+                            <div
+                              className="confidence-fill-sm"
+                              style={{
+                                width: `${det.confianza_ia || 0}%`,
+                                backgroundColor: det.confianza_ia >= 80 ? '#10b981' :
+                                              det.confianza_ia >= 60 ? '#f59e0b' : '#ef4444'
+                              }}
+                            >
+                              <span className="confidence-text-sm">
+                                {formatConfianza(det.confianza_ia)}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td>{formatFecha(det.created_at, true)}</td>
+                        <td>
+                          <div style={{ display: "flex", gap: "0.375rem" }}>
+                            {det.imagen && (
+                              <a
+                                href={det.imagen}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn-icon btn-view"
+                                title="Ver imagen"
+                                style={{ width: "28px", height: "28px" }}
+                              >
+                                <ImageIcon className="icon-xs" />
+                              </a>
+                            )}
+                            <Link
+                              to={`/detecciones/${det.id}`}
+                              className="btn-icon btn-edit"
+                              title="Ver detalle"
+                              style={{ width: "28px", height: "28px" }}
+                            >
+                              <Eye className="icon-xs" />
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
-                {detecciones.length > 5 && (
-                  <div className="view-all-container">
-                    <Link to={`/detecciones?tacho=${id}`} className="view-all-btn">
-                      Ver todas las detecciones ({detecciones.length})
-                    </Link>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+              {/* Distribución */}
+              <div className="distribution-grid">
+                {Object.entries(stats.distribucion).map(([tipo, count]) => {
+                  if (count === 0) return null;
+                  const porcentaje = detecciones.length > 0 ? ((count / detecciones.length) * 100).toFixed(1) : 0;
+                  return (
+                    <div key={tipo} className="distribution-item">
+                      <div className="distribution-icon">
+                        {getClasificacionIcon(tipo)}
+                      </div>
+                      <div className="distribution-content">
+                        <div className="distribution-label">
+                          {getClasificacionText(tipo)}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                          <span className="distribution-value">{count}</span>
+                          <span className="distribution-percentage">{porcentaje}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       </div>
 

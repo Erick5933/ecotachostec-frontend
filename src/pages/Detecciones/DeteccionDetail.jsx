@@ -6,6 +6,7 @@ import {
   XCircle, Zap, Eye, BarChart3, Clock, Target
 } from "lucide-react";
 import api from "../../api/axiosConfig";
+import { pickDeteccionImage, resolveMediaUrl } from "../../utils/helpers";
 import "./detecciones.css";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
@@ -172,6 +173,7 @@ const DeteccionDetail = () => {
   const tachoLat = tacho?.ubicacion_lat ? Number(tacho.ubicacion_lat) : null;
   const tachoLon = tacho?.ubicacion_lon ? Number(tacho.ubicacion_lon) : null;
   const confidence = deteccion.confianza_ia || deteccion.confianza || 0;
+  const imageUrl = resolveMediaUrl(pickDeteccionImage(deteccion));
 
   return (
     <div className="detecciones-container">
@@ -375,7 +377,7 @@ const DeteccionDetail = () => {
           </div>
 
           {/* Imagen de la detección */}
-          {deteccion.imagen && (
+          {imageUrl ? (
             <div className="ia-analysis-section" style={{ marginTop: '1.5rem' }}>
               <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.25rem', color: '#1f2937', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <ImageIcon size={20} color="#8b5cf6" />
@@ -389,7 +391,7 @@ const DeteccionDetail = () => {
                 border: '2px solid #e5e7eb'
               }}>
                 <img
-                  src={deteccion.imagen}
+                  src={imageUrl}
                   alt={`Detección ${deteccion.nombre}`}
                   style={{
                     width: '100%',
@@ -404,6 +406,17 @@ const DeteccionDetail = () => {
               <div className="ia-info-box" style={{ marginTop: '1rem' }}>
                 <Eye size={16} />
                 <span>Esta imagen fue analizada por nuestro sistema de IA para clasificar el residuo</span>
+              </div>
+            </div>
+          ) : (
+            <div className="ia-analysis-section" style={{ marginTop: '1.5rem' }}>
+              <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.25rem', color: '#1f2937', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <ImageIcon size={20} color="#8b5cf6" />
+                Imagen no disponible
+              </h3>
+              <div className="ia-info-box">
+                <Eye size={16} />
+                <span>Esta detección no tiene imagen asociada. Las nuevas detecciones guardadas desde la IA adjuntan imagen automáticamente.</span>
               </div>
             </div>
           )}

@@ -87,18 +87,8 @@ export default function Profile() {
           {/* HEADER */}
           <div className="profile-header">
             <div className="profile-logo">
-              <div className="profile-logo-icon">
-                <svg
-                  width="40"
-                  height="40"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
+              <div className="profile-logo-icon" style={{ overflow: 'hidden' }}>
+                <img src="/logo.svg" alt="EcoTachosTec" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }} />
               </div>
               <h1 className="profile-logo-title">Mi Perfil</h1>
             </div>

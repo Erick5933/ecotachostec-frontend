@@ -59,7 +59,7 @@ export const CATEGORY_INFO = {
 };
 
 // ==================== IA - DETECCIÓN CON ROBOFLOW ====================
-export const detectWasteWithAI = async (imagen) => {
+export const detectWasteWithAI = async (imagen, tachoId = null, engine = null) => {
   try {
     console.log("🚀 [detectWasteWithAI] Iniciando detección...");
     console.log(`📡 [detectWasteWithAI] POST ${DETECCION_ENDPOINTS.AI_DETECT}`);
@@ -67,13 +67,21 @@ export const detectWasteWithAI = async (imagen) => {
     let data;
     // Si viene en base64 (data:image/...), enviar como JSON directo
     if (typeof imagen === "string" && imagen.startsWith("data:image/")) {
-      const resp = await axiosInstance.post(DETECCION_ENDPOINTS.AI_DETECT, { imagen });
+      const payload = tachoId ? { imagen, tacho_id: tachoId } : { imagen };
+      if (engine) payload.engine = engine; // opcional: preferencia del motor
+      const resp = await axiosInstance.post(DETECCION_ENDPOINTS.AI_DETECT, payload);
       data = resp.data;
     } else {
-      // Enviar como multipart sin forzar Content-Type (axios agrega boundary)
+      // Enviar como multipart con header adecuado (evitar default application/json)
       const formData = new FormData();
       formData.append("imagen", imagen);
-      const resp = await axiosInstance.post(DETECCION_ENDPOINTS.AI_DETECT, formData);
+      if (tachoId) formData.append("tacho_id", tachoId);
+      if (engine) formData.append("engine", engine);
+      const resp = await axiosInstance.post(
+        DETECCION_ENDPOINTS.AI_DETECT,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
       data = resp.data;
     }
 

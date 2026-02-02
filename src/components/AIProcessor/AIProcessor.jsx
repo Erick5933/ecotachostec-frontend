@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import { Camera, Zap, Target, AlertCircle, CheckCircle2, XCircle, Info } from "lucide-react";
 import { detectWasteWithAI, CATEGORY_INFO, checkAIHealth, getAIModelInfo } from "../../api/deteccionApi";
 
-export default function AIProcessor({ capturedImage }) {
+export default function AIProcessor({ capturedImage, tachoId = null }) {
   const [processingStatus, setProcessingStatus] = useState("ready");
   const [detectionResults, setDetectionResults] = useState(null);
   const [errorInfo, setErrorInfo] = useState(null);
   const [aiStatus, setAiStatus] = useState({ engine: null, message: null, details: null });
+  const [enginePreference, setEnginePreference] = useState(null);
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
@@ -23,6 +24,14 @@ export default function AIProcessor({ capturedImage }) {
 
   // Obtener estado del motor IA y detalles del modelo al montar
   useEffect(() => {
+    // Evitar dobles llamadas en modo desarrollo (React 18 StrictMode)
+    // Usamos una marca a nivel de módulo que persiste entre remounts.
+    if (import.meta.env.DEV && window.__aiStatusFetchedOnce) {
+      return;
+    }
+    if (import.meta.env.DEV) {
+      window.__aiStatusFetchedOnce = true;
+    }
     const fetchAIStatus = async () => {
       const health = await checkAIHealth();
       const info = await getAIModelInfo();
@@ -33,6 +42,7 @@ export default function AIProcessor({ capturedImage }) {
           message: data.message || "Servicio IA",
           details: data,
         });
+        if (!enginePreference) setEnginePreference(data.engine);
       } else {
         setAiStatus({ engine: null, message: `Error: ${health.error}`, details: null });
       }
@@ -83,7 +93,7 @@ export default function AIProcessor({ capturedImage }) {
         aiStatus.engine === 'local' ? 'Ultralytics (motor local)' : 'Roboflow');
       
       // ✅ LLAMADA REAL A LA API
-      const result = await detectWasteWithAI(capturedImage);
+      const result = await detectWasteWithAI(capturedImage, tachoId, enginePreference || aiStatus.engine);
 
       console.log("📡 Respuesta de API:", result);
 
@@ -95,8 +105,9 @@ export default function AIProcessor({ capturedImage }) {
           suggestions: [
             "Verifica tu conexión a internet",
             "Intenta de nuevo en unos momentos",
-            "Contacta al administrador si el problema persiste"
-          ]
+            "Contacta al administrador si el problema persiste",
+            result.error && String(result.error).includes("Roboflow") ? "Cambia el motor a 'local' e intenta nuevamente" : null
+          ].filter(Boolean)
         });
         setProcessingStatus("error");
         return;
@@ -131,7 +142,8 @@ export default function AIProcessor({ capturedImage }) {
           icon: categoryInfo.icon,
           descripcion: categoryInfo.description || categoryInfo.descripcion,
           ejemplos: categoryInfo.examples || categoryInfo.ejemplos,
-          topPredicciones: result.top_predicciones || []
+          topPredicciones: result.top_predicciones || [],
+          deteccionId: result.deteccion_id || null
         });
 
         setProcessingStatus("complete");
@@ -205,6 +217,30 @@ export default function AIProcessor({ capturedImage }) {
         <p style={{ margin: 0, fontSize: '14px', color: '#6b7280', fontWeight: '500' }}>
           {aiStatus.engine === "local" ? "Motor Local Ultralytics" : "Roboflow Workflow"}
         </p>
+        {/* Selector de motor opcional */}
+        <div style={{ marginTop: '8px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <span style={{ fontSize: '12px', color: '#374151', fontWeight: 700 }}>Motor preferido:</span>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#374151' }}>
+            <input
+              type="radio"
+              name="enginePref"
+              value="local"
+              checked={(enginePreference || aiStatus.engine) === 'local'}
+              onChange={() => setEnginePreference('local')}
+            />
+            Local
+          </label>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#374151' }}>
+            <input
+              type="radio"
+              name="enginePref"
+              value="roboflow"
+              checked={(enginePreference || aiStatus.engine) === 'roboflow'}
+              onChange={() => setEnginePreference('roboflow')}
+            />
+            Roboflow
+          </label>
+        </div>
         {aiStatus.engine && (
           <div style={{
             marginTop: '8px',
@@ -524,6 +560,24 @@ export default function AIProcessor({ capturedImage }) {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* ENLACE A DETALLE DE DETECCIÓN */}
+          {detectionResults.deteccionId && (
+            <div style={{ 
+              marginTop: '16px', padding: '12px', borderRadius: '8px',
+              backgroundColor: '#ecfdf5', border: '2px solid #10b981'
+            }}>
+              <a 
+                href={`/portal/detecciones/${detectionResults.deteccionId}`}
+                style={{
+                  display: 'inline-block', fontWeight: 700, color: '#065f46',
+                  textDecoration: 'none'
+                }}
+              >
+                Ver detalle de la detección #{detectionResults.deteccionId}
+              </a>
             </div>
           )}
         </div>

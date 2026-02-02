@@ -3,6 +3,7 @@ import { useEffect, useState, useContext, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { AuthContext } from "../../context/AuthContext";
 import api from "../../api/axiosConfig";
+import { pickDeteccionImage, resolveMediaUrl } from "../../utils/helpers";
 import CameraCapture from "../../components/CameraCapture/CameraCapture";
 import TachosMap from "../../pages/User/TachosMap.jsx";
 import EstadisticasDetecciones from "../../pages/User/EstadisticasDetecciones.jsx";
@@ -14,8 +15,10 @@ import {
   ArrowRight, RefreshCw, Download, Search,
   Target, Award, Sparkles, Radio, Camera, Upload, X, Scan, CheckCircle2,
   Image as ImageIcon, Building, Users, Globe, Target as TargetIcon,
-  Navigation, Bell, Mail, Phone, Map, Leaf, Recycle, Ban, Hash
+  Navigation, Bell, Mail, Phone, Map, Leaf, Recycle, Ban, Hash, FileText,
+  XCircle
 } from "lucide-react";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import "./userPortal.css";
 
 export default function UserPortal() {
@@ -40,6 +43,8 @@ export default function UserPortal() {
   const [misDetecciones, setMisDetecciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState("overview");
+  const [selectedDeteccionId, setSelectedDeteccionId] = useState(null);
+  const [selectedDeteccion, setSelectedDeteccion] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchTermTachos, setSearchTermTachos] = useState("");
   const [animatedStats, setAnimatedStats] = useState({
@@ -53,6 +58,7 @@ export default function UserPortal() {
   const [userLocation, setUserLocation] = useState(null);
   const [locationLoading, setLocationLoading] = useState(false);
   const [empresaAsociada, setEmpresaAsociada] = useState(null);
+  const [geoDenied, setGeoDenied] = useState(false);
 
   // Estados para IA (reducidos)
   const [showCameraModal, setShowCameraModal] = useState(false);
@@ -130,7 +136,7 @@ export default function UserPortal() {
       }
     };
 
-    if (stats.totalTachos > 0) {
+    if (stats.totalTachos > 0 || stats.tachosEmpresa > 0 || stats.tachosPublicosCerca > 0) {
       const startTime = Date.now();
       requestAnimationFrame(() => animationFrame(startTime));
     }
@@ -144,9 +150,18 @@ export default function UserPortal() {
           const { latitude, longitude } = position.coords;
           setUserLocation({ lat: latitude, lon: longitude });
           setLocationLoading(false);
+          setGeoDenied(false);
         },
         (error) => {
-          console.error("Error obteniendo ubicación:", error);
+          if (error?.code === 1) {
+            setGeoDenied(true);
+            if (!window.__geoDeniedLogged) {
+              console.warn("Permiso de ubicación denegado por el usuario.");
+              window.__geoDeniedLogged = true;
+            }
+          } else {
+            console.error("Error obteniendo ubicación:", error);
+          }
           // Ubicación por defecto (Cuenca, Ecuador)
           setUserLocation({ lat: -2.90055, lon: -79.00453 });
           setLocationLoading(false);
@@ -182,21 +197,30 @@ export default function UserPortal() {
         const tachosData = tachosRes.data.results || tachosRes.data || [];
         const deteccionesData = deteccionesRes.data.results || deteccionesRes.data || [];
 
-        // Filtrar mis tachos (donde el usuario es propietario)
+        // Filtrar mis tachos (donde el usuario es propietario/encargado)
         const userTachos = tachosData.filter(tacho => tacho.propietario === user?.id);
 
         // Filtrar tachos personales (tipo "personal") del usuario
         const tachosPersonales = userTachos.filter(tacho => tacho.tipo === "personal");
 
         // Filtrar tachos de empresas donde el usuario es encargado (tipo "publico")
-        const tachosConUsuarioEncargado = tachosData.filter(tacho =>
-          tacho.propietario === user?.id && tacho.tipo === "publico"
-        );
+        const tachosConUsuarioEncargado = userTachos.filter(tacho => tacho.tipo === "publico");
+
+        // Log para debug
+        console.log("User ID:", user?.id);
+        console.log("Total tachos:", tachosData.length);
+        console.log("Mis tachos (propietario):", userTachos.length);
+        console.log("Tachos personales:", tachosPersonales.length);
+        console.log("Tachos empresa:", tachosConUsuarioEncargado.length);
+        console.log("Datos tachos empresa:", tachosConUsuarioEncargado);
 
         // Obtener empresas únicas donde el usuario es encargado
         const empresas = [...new Set(tachosConUsuarioEncargado.map(t => t.empresa_nombre).filter(Boolean))];
-        if (empresas.length > 0) {
-          setEmpresaAsociada(empresas[0]);
+        // Siempre mostrar la sección de empresa si hay tachos asignados, aunque no tenga nombre
+        if (tachosConUsuarioEncargado.length > 0) {
+          setEmpresaAsociada(empresas[0] || "Mi Empresa");
+        } else {
+          setEmpresaAsociada(null);
         }
 
         // Filtrar tachos públicos activos
@@ -239,6 +263,8 @@ export default function UserPortal() {
           tachosPublicosCerca: tachosCercaData.length,
         };
         setStats(newStats);
+        // Actualizar animatedStats inmediatamente para que se vea el cambio de stats
+        setAnimatedStats(newStats);
 
         // Actualizar estados - CORREGIDO
         setTachos(tachosData);
@@ -305,25 +331,22 @@ export default function UserPortal() {
     }
   };
 
-  const handleNewDetection = async (detectionData) => {
+  const handleNewDetection = async (createdDetection) => {
     try {
-      // Crear detección solo para el usuario actual
-      const detectionPayload = {
-        ...detectionData,
-        usuario: user.id,  // Asignar al usuario actual
-        tacho: null,       // No asignar a ningún tacho
-        ubicacion_lat: userLocation?.lat || -0.2295,  // Usar ubicación del usuario o default
-        ubicacion_lon: userLocation?.lon || -78.5249,
-      };
-
-      const response = await api.post("/detecciones/", detectionPayload);
-
-      // Recargar datos
-      loadPortalData();
-
-      return response.data;
+      // La creación ya se realizó en NuevaDeteccionIA con FormData (incluye imagen)
+      // Aquí refrescamos datos y cambiamos la vista a "misDetecciones"
+      if (!createdDetection?.id) {
+        console.warn("onNewDetection sin id; se omite creación adicional.");
+      }
+      // Refrescar datos del portal y ubicación
+      await loadPortalData();
+      // Actualizar ubicación para recalcular tachos cercanos
+      getUserLocation();
+      // Cambiar a la vista de detecciones después de que loadPortalData termine
+      setActiveView("mydetecciones");
+      return createdDetection;
     } catch (error) {
-      console.error("Error creando detección:", error);
+      console.error("Error al refrescar datos tras nueva detección:", error);
       throw error;
     }
   };
@@ -332,6 +355,25 @@ export default function UserPortal() {
   const handleNavigateToTacho = (tacho) => {
     console.log("Navegando a tacho:", tacho.id);
     navigate(`/tachos/${tacho.id}`);
+  };
+
+  // Función para abrir detalle de una detección
+  const handleOpenDeteccionDetail = async (deteccionId) => {
+    try {
+      const res = await api.get(`/detecciones/${deteccionId}/`);
+      setSelectedDeteccion(res.data);
+      setSelectedDeteccionId(deteccionId);
+      setActiveView("detalle");
+    } catch (error) {
+      console.error("Error cargando detección:", error);
+    }
+  };
+
+  // Función para cerrar detalle
+  const handleCloseDeteccionDetail = () => {
+    setSelectedDeteccionId(null);
+    setSelectedDeteccion(null);
+    setActiveView("overview");
   };
 
   const filteredTachos = misTachos.filter(tacho =>
@@ -529,6 +571,23 @@ export default function UserPortal() {
           </div>
         </div>
       </div>
+
+          {/* Geolocalización: aviso si está denegado */}
+          {geoDenied && (
+            <div style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #F59E0B', borderRadius: 8, padding: '10px 12px', margin: '12px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertCircle size={16} />
+                <span>Para ver tachos cercanos, permite acceso a tu ubicación.</span>
+              </div>
+              <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button className="portal-action-btn" onClick={getUserLocation} title="Intentar obtener ubicación">
+                  <Navigation size={16} />
+                  <span style={{ marginLeft: 6 }}>Intentar de nuevo</span>
+                </button>
+                <span style={{ fontSize: 12 }}>Si el navegador lo bloqueó, habilítalo en “Ajustes del sitio”.</span>
+              </div>
+            </div>
+          )}
 
       {/* Stats Overview */}
       <div ref={statsRef} className="portal-stats-grid">
@@ -731,12 +790,13 @@ export default function UserPortal() {
                           </div>
                         </div>
                         <div className="activity-hover-effect"></div>
-                        <Link
-                          to={`/detecciones/${det.id}`}
+                        <button
+                          onClick={() => handleOpenDeteccionDetail(det.id)}
                           className="activity-detail-link"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer' }}
                         >
                           <ArrowRight size={18} />
-                        </Link>
+                        </button>
                       </div>
                     );
                   })}
@@ -776,7 +836,7 @@ export default function UserPortal() {
               </div>
               <div className="quick-action-content">
                 <h4>Tachos Cerca de Mí</h4>
-                <p>Encuentra tachos públicos cercanos</p>
+                <p>{stats.tachosPublicosCerca || 0} tachos en un radio de 10km</p>
               </div>
               <ArrowRight size={20} className="quick-action-arrow" />
             </div>
@@ -895,6 +955,8 @@ export default function UserPortal() {
       {/* Vista de EMPRESA */}
       {activeView === "empresa" && empresaAsociada && (
         <div className="portal-view">
+          {/* Debug logs */}
+          {console.log("renderizando empresa view:", { empresaAsociada, tachosEmpresa: tachosEmpresa.length, deteccionesEmpresa: deteccionesEmpresa.length })}
           <div className="portal-card">
             <div className="portal-card-header">
               <div className="card-header-left">
@@ -989,6 +1051,7 @@ export default function UserPortal() {
                             <th><div className="th-content"><Calendar size={14} /><span>Fecha</span></div></th>
                             <th><div className="th-content"><span>Confianza</span></div></th>
                             <th><div className="th-content"><span>Tacho</span></div></th>
+                            <th><div className="th-content"><span>Acciones</span></div></th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1008,6 +1071,18 @@ export default function UserPortal() {
                               </td>
                               <td>
                                 {det.tacho_nombre || `Tacho ${det.tacho}`}
+                              </td>
+                              <td>
+                                <div className="action-buttons">
+                                  <button
+                                    onClick={() => handleOpenDeteccionDetail(det.id)}
+                                    className="detail-btn"
+                                    title="Ver detalles"
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                                  >
+                                    <Eye size={14} />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -1193,13 +1268,14 @@ export default function UserPortal() {
                           </td>
                           <td data-label="Acciones">
                             <div className="action-buttons">
-                              <Link
-                                to={`/detecciones/${det.id}`}
+                              <button
+                                onClick={() => handleOpenDeteccionDetail(det.id)}
                                 className="detail-btn"
                                 title="Ver detalles"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                               >
                                 <Eye size={14} />
-                              </Link>
+                              </button>
                               <Link
                                 to={`/tachos/${det.tacho}`}
                                 className="detail-btn secondary"
@@ -1366,6 +1442,179 @@ export default function UserPortal() {
                     <Navigation size={18} />
                     <span>Obtener ubicación</span>
                   </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Vista de DETALLE DE DETECCIÓN */}
+      {activeView === "detalle" && selectedDeteccion && (
+        <div className="portal-view" style={{ background: '#dcfce7' }}>
+          {/* Header con cierre */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', background: 'linear-gradient(135deg, #1f2937 0%, #111827 100%)', padding: '1.5rem', borderRadius: '12px', marginLeft: '-1.5rem', marginRight: '-1.5rem', marginTop: '-1.5rem', paddingLeft: '2rem', paddingRight: '2rem' }}>
+            <div>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#ffffff', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Brain size={24} color="#8b5cf6" />
+                Detalle de Detección
+              </h2>
+            </div>
+            <button
+              onClick={handleCloseDeteccionDetail}
+              className="portal-action-btn"
+              style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#ffffff' }}
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+            {/* Panel Izquierdo - Información */}
+            <div className="portal-card" style={{ background: '#ffffff', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+              <div className="portal-card-header" style={{ background: '#f0fdf4', borderBottom: '2px solid #86efac' }}>
+                <h3 className="portal-card-title" style={{ color: '#065f46', margin: 0 }}>Información de la Detección</h3>
+              </div>
+              <div className="portal-card-body">
+                {/* Stats principales */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                  <div style={{ background: '#dcfce7', border: '1px solid #86efac', padding: '1rem', borderRadius: '8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#065f46', fontWeight: 600, marginBottom: '0.25rem' }}>CONFIANZA IA</div>
+                    <div style={{ fontSize: '2rem', fontWeight: 700, color: '#10b981' }}>{selectedDeteccion.confianza_ia || 0}%</div>
+                  </div>
+                  <div style={{ background: '#dcfce7', border: '1px solid #86efac', padding: '1rem', borderRadius: '8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#065f46', fontWeight: 600, marginBottom: '0.25rem' }}>CLASIFICACIÓN</div>
+                    <div style={{ fontSize: '1rem', fontWeight: 600, color: '#10b981', textTransform: 'capitalize', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                      {selectedDeteccion.clasificacion === 'organico' && <CheckCircle size={16} />}
+                      {selectedDeteccion.clasificacion === 'reciclable' && <Zap size={16} />}
+                      {selectedDeteccion.clasificacion === 'inorganico' && <XCircle size={16} />}
+                      {selectedDeteccion.clasificacion || 'N/A'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Barra de confianza mejorada */}
+                <div style={{ marginBottom: '1.5rem', padding: '0.75rem', background: '#f9fafb', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                    <span style={{ fontSize: '0.875rem', color: '#6b7280', fontWeight: 500 }}>Nivel de Confianza</span>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: selectedDeteccion.confianza_ia >= 80 ? '#10b981' : selectedDeteccion.confianza_ia >= 60 ? '#f59e0b' : '#ef4444' }}>
+                      {selectedDeteccion.confianza_ia || 0}%
+                    </span>
+                  </div>
+                  <div style={{ width: '100%', height: '8px', backgroundColor: '#e5e7eb', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        width: `${selectedDeteccion.confianza_ia || 0}%`,
+                        height: '100%',
+                        backgroundColor: selectedDeteccion.confianza_ia >= 80 ? '#10b981' : selectedDeteccion.confianza_ia >= 60 ? '#f59e0b' : '#ef4444',
+                        transition: 'width 0.5s ease'
+                      }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* Información detallada */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem', background: '#f9fafb', borderRadius: '8px' }}>
+                    <Trash2 size={18} color="#10b981" />
+                    <div>
+                      <div style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 600 }}>Tacho Asociado</div>
+                      <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1f2937' }}>
+                        {selectedDeteccion.tacho_nombre || `Tacho ${selectedDeteccion.tacho}`}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem', background: '#f9fafb', borderRadius: '8px' }}>
+                    <Calendar size={18} color="#6b7280" />
+                    <div>
+                      <div style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 600 }}>Fecha de Registro</div>
+                      <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1f2937' }}>
+                        {formatFechaLegible(selectedDeteccion.created_at)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem', background: '#f9fafb', borderRadius: '8px' }}>
+                    <MapPin size={18} color="#3b82f6" />
+                    <div>
+                      <div style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 600 }}>Ubicación</div>
+                      <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1f2937' }}>
+                        {getUbicacionFromCoords(selectedDeteccion.ubicacion_lat, selectedDeteccion.ubicacion_lon)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {selectedDeteccion.descripcion && (
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', padding: '0.75rem', background: '#f9fafb', borderRadius: '8px' }}>
+                      <FileText size={18} color="#8b5cf6" style={{ marginTop: '0.25rem', flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 600, marginBottom: '0.25rem' }}>Descripción</div>
+                        <div style={{ fontSize: '0.875rem', color: '#374151', lineHeight: 1.5 }}>
+                          {selectedDeteccion.descripcion}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem', background: '#f9fafb', borderRadius: '8px' }}>
+                    <Target size={18} color="#ec4899" />
+                    <div>
+                      <div style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 600 }}>Coordenadas</div>
+                      <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1f2937', fontFamily: 'monospace' }}>
+                        {selectedDeteccion.ubicacion_lat && selectedDeteccion.ubicacion_lon
+                          ? `${parseFloat(selectedDeteccion.ubicacion_lat).toFixed(6)}, ${parseFloat(selectedDeteccion.ubicacion_lon).toFixed(6)}`
+                          : 'No disponibles'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Panel Derecho - Imagen y Mapa */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {/* Imagen */}
+              {resolveMediaUrl(pickDeteccionImage(selectedDeteccion)) && (
+                <div className="portal-card" style={{ background: '#ffffff', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+                  <div className="portal-card-header" style={{ background: '#f0fdf4', borderBottom: '2px solid #86efac' }}>
+                    <h3 className="portal-card-title" style={{ color: '#065f46', margin: 0 }}>Imagen Analizada</h3>
+                  </div>
+                  <div className="portal-card-body" style={{ padding: 0, overflow: 'hidden' }}>
+                    <img
+                      src={resolveMediaUrl(pickDeteccionImage(selectedDeteccion))}
+                      alt="Detección"
+                      style={{ width: '100%', height: 'auto', display: 'block', borderRadius: '0 0 8px 8px' }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Mapa */}
+              {selectedDeteccion.ubicacion_lat && selectedDeteccion.ubicacion_lon && (
+                <div className="portal-card" style={{ background: '#ffffff', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+                  <div className="portal-card-header" style={{ background: '#f0fdf4', borderBottom: '2px solid #86efac' }}>
+                    <h3 className="portal-card-title" style={{ color: '#065f46', margin: 0 }}>Ubicación en Mapa</h3>
+                  </div>
+                  <div className="portal-card-body" style={{ padding: 0, height: '350px', overflow: 'hidden' }}>
+                    <MapContainer
+                      center={[parseFloat(selectedDeteccion.ubicacion_lat), parseFloat(selectedDeteccion.ubicacion_lon)]}
+                      zoom={16}
+                      style={{ height: '100%', width: '100%', borderRadius: '0 0 8px 8px' }}
+                    >
+                      <TileLayer
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        attribution='&copy; OpenStreetMap'
+                      />
+                      <Marker position={[parseFloat(selectedDeteccion.ubicacion_lat), parseFloat(selectedDeteccion.ubicacion_lon)]}>
+                        <Popup>
+                          <strong>{selectedDeteccion.tacho_nombre || 'Detección'}</strong><br />
+                          {selectedDeteccion.clasificacion && `Tipo: ${selectedDeteccion.clasificacion}`}<br />
+                          Confianza: {selectedDeteccion.confianza_ia || 0}%
+                        </Popup>
+                      </Marker>
+                    </MapContainer>
+                  </div>
                 </div>
               )}
             </div>

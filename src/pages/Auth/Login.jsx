@@ -151,7 +151,9 @@ export default function Login() {
         <div className="auth-card">
           <div className="auth-card-header">
             <div className="auth-logo">
-              <div className="auth-logo-icon">🌿</div>
+              <div className="auth-logo-icon" style={{ overflow: 'hidden' }}>
+                <img src="/logo.svg" alt="EcoTachosTec" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }} />
+              </div>
               <h1 className="auth-logo-title">EcoTachosTec</h1>
             </div>
             <h2 className="auth-title">Iniciar Sesión</h2>

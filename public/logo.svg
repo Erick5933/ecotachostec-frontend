@@ -1,0 +1,28 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Tacho verde -->
+  <rect x="12" y="18" width="40" height="35" rx="6" fill="#2D6A4F"/>
+  
+  <!-- Tapa del tacho -->
+  <rect x="10" y="14" width="44" height="6" rx="3" fill="#3d8659"/>
+  
+  <!-- Símbolo de reciclaje blanco -->
+  <g transform="translate(32, 32)">
+    <!-- Flecha 1 (arriba derecha) -->
+    <path d="M 8 -2 L 10 2 L 6 4 Z" fill="white"/>
+    <path d="M 8 -2 Q 12 -8 14 -14" stroke="white" stroke-width="1.5" fill="none"/>
+    
+    <!-- Flecha 2 (abajo derecha) -->
+    <path d="M 10 10 L 6 12 L 8 6 Z" fill="white"/>
+    <path d="M 10 10 Q 16 12 18 18" stroke="white" stroke-width="1.5" fill="none"/>
+    
+    <!-- Flecha 3 (izquierda) -->
+    <path d="M -10 8 L -12 2 L -6 4 Z" fill="white"/>
+    <path d="M -10 8 Q -16 4 -18 -4" stroke="white" stroke-width="1.5" fill="none"/>
+  </g>
+  
+  <!-- Hoja amarilla/verde (lado derecho) -->
+  <g transform="translate(44, 20)">
+    <ellipse cx="0" cy="0" rx="6" ry="10" fill="#A4D65E" transform="rotate(45)"/>
+    <path d="M -2 -8 Q 0 -4 2 0 Q 0 4 -2 8" stroke="#2D6A4F" stroke-width="0.8" fill="none"/>
+  </g>
+</svg>
